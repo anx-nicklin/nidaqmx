@@ -1,0 +1,2 @@
+# nidaqmx
+capsule location detection
