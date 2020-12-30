@@ -26,8 +26,8 @@ external_stylesheets = ['https://codepen.io/chriddyp/pen/bWLwgP.css']
 task = nidaqmx.Task()
 for port_name in port_list:
     task.ai_channels.add_ai_voltage_chan(port_name)
-# https://knowledge.ni.com/KnowledgeArticleDetails?id=kA00Z0000019ZWxSAM&l=en-US
-# task.timing.cfg_samp_clk_timing(sample_rate)
+https://knowledge.ni.com/KnowledgeArticleDetails?id=kA00Z0000019ZWxSAM&l=en-US
+task.timing.cfg_samp_clk_timing(sample_rate)
 
 # Create different figure with different layout 
 # There are two modes: basic and group
@@ -53,20 +53,7 @@ def create_fig(mode):
             'line': {'color': specs['color'][i]}
         }, specs["position"][i][0], specs["position"][i][1])
     return fig
-
-# Initialize webpage
 fig = create_fig(1)
-app = dash.Dash(__name__, suppress_callback_exceptions=True, external_stylesheets=external_stylesheets)
-app.layout = html.Div([
-    dcc.Tabs(id='tab-button', value='index-tab', children=[
-        dcc.Tab(label='Display Data', value='index-tab'),
-        dcc.Tab(label='Collect Data', value='collect-tab'),
-        dcc.Tab(label='Result', value='result-tab'),
-    ]),
-    html.Div(id='tab-content'),
-    html.Div([], id='static-data', style={'display': 'none'}),
-    html.Div("False", id='store-button-state', style={'display': 'none'})
-])
 
 # Different tabs
 # Index tab
@@ -117,6 +104,19 @@ result_layout = html.Div(
     ])
 )
 
+# Initialize webpage
+app = dash.Dash(__name__, suppress_callback_exceptions=True, external_stylesheets=external_stylesheets)
+app.layout = html.Div([
+    dcc.Tabs(id='tab-button', value='index-tab', children=[
+        dcc.Tab(label='Display Data', value='index-tab'),
+        dcc.Tab(label='Collect Data', value='collect-tab'),
+        dcc.Tab(label='Result', value='result-tab'),
+    ]),
+    html.Div(index_layout, id='tab-content'),
+    html.Div([[] for k in range(4)], id='static-data', style={'display': 'none'}),
+    html.Div("False", id='store-button-state', style={'display': 'none'})
+])
+
 # Switch tabs
 @app.callback(Output('tab-content', 'children'),
               Input('tab-button', 'value'))
@@ -143,7 +143,7 @@ def get_data():
             # voltage_list[j].append(i + j)
             voltage_list[j].append(data[j])
         number.append(i)
-        # time.sleep(0.3)
+        time.sleep(0.3)
         cur_time = time.time()
         if cur_time - start_time >= publisher_interval:
             message = json.dumps({'x': number, 'y': voltage_list})
@@ -153,6 +153,7 @@ def get_data():
             start_time = time.time()
         i = i + 1
 
+# Update graph continuously
 sub_context = zmq.Context()
 sub = sub_context.socket(zmq.SUB)
 sub.connect("tcp://localhost:%s" % port)
@@ -172,6 +173,7 @@ sub.setsockopt_string(zmq.SUBSCRIBE, topic)
 )
 def update_graph_live(n, basic_button, group_button, figure, data_list, number_list, fig_num):
     changed_id = [p['prop_id'] for p in dash.callback_context.triggered][0]
+    # Use different figure layout with different mode
     if 'button' in changed_id:
         legend = False
         if 'basic-button' in changed_id:
@@ -183,6 +185,7 @@ def update_graph_live(n, basic_button, group_button, figure, data_list, number_l
         figure = create_fig(fig_num)
         figure.update_layout(showlegend=legend)
 
+    # Receive data
     received = False
     while True:
         try:
@@ -198,6 +201,8 @@ def update_graph_live(n, basic_button, group_button, figure, data_list, number_l
             if e.errno != zmq.EAGAIN:
                 raise
             break
+
+    # Update Graph
     if received:
         for i in range(num_of_ports):
             data_list[i].extend(data["y"][i])
@@ -210,7 +215,7 @@ def update_graph_live(n, basic_button, group_button, figure, data_list, number_l
             figure["layout"][xaxis_name]["range"] = [number_list[-1] - limit, number_list[-1]]
     return figure, data_list, number_list, fig_num
 
-# Write data to file until killed
+# Write data to file until killed, use read_data.py to transform into csv
 def store_data_helper():
     context = zmq.Context()
     socket = context.socket(zmq.SUB)
@@ -231,6 +236,7 @@ def store_data_helper():
         print("storing_data")
         data_file.write(decodedMessage[4 :] + "\n")
 
+# Use a new process to store data
 store_process = Process(target=store_data_helper)
 @app.callback(
     Output('store-button', 'children'),
@@ -253,6 +259,7 @@ def store_data(n_clicks, store_state):
         else:
             return "Store Data", "False"
 
+# Check if collected data are valid
 def check_data(data_list, num_of_ports):
     var_list_local = var_list
     if num_of_ports == num_of_extra:
@@ -263,6 +270,7 @@ def check_data(data_list, num_of_ports):
             return port_list[i]
     return True
 
+# Collect data for static location calculation
 @app.callback(
     Output('collect-graph', 'figure'),
     Output('collect-counter', 'children'),
@@ -280,6 +288,7 @@ def collect_data(collect_1_clicks, collect_2_clicks, output_clicks, clear_clicks
     changed_id = [p['prop_id'] for p in dash.callback_context.triggered][0]
     valid = False
     if 'collect-button' in changed_id:
+    	# Collect different number of channels
         if 'collect-button-1' in changed_id and collect_1_clicks > 0:
                 num_of_ports_local = num_of_ports
                 valid = True
@@ -331,7 +340,7 @@ def collect_data(collect_1_clicks, collect_2_clicks, output_clicks, clear_clicks
                         display_lists.append(html.P("Collect more group 1"))
             else:
                 display_lists.append(html.P(str(len(data_list[0])) + " value collected: " + check_result + " Invalid"))
-
+    # Output collected data to csv
     elif 'output-button' in changed_id:
         if output_clicks > 0:
             print("Outputing data")
@@ -351,7 +360,7 @@ def collect_data(collect_1_clicks, collect_2_clicks, output_clicks, clear_clicks
                 os.makedirs(collect_folder_name)
             df.to_csv(collect_folder_name + file_name + ".csv")
             display_lists.append(html.P("Ouput Success"))
-    
+    # Clear collected data and the graph 
     elif 'clear-button' in changed_id:
         if clear_clicks > 0:
             mean_lists = []
@@ -361,6 +370,7 @@ def collect_data(collect_1_clicks, collect_2_clicks, output_clicks, clear_clicks
     display_text = str(len(mean_lists)) + " groups collected"
     return figure, display_text, mean_lists, display_lists
 
+# Calculate use collected data
 @app.callback(
     Output('tab-button', 'value'),
     Output('static-data', 'children'),
@@ -371,27 +381,37 @@ def collect_data(collect_1_clicks, collect_2_clicks, output_clicks, clear_clicks
 def calcluate_action(calculate_clicks, mean_lists, tab_value, static_data):
     if calculate_clicks > 0:
         result_list = []
-        static_data = {"x": [], "y":[], "z": []}
+        static_data = [[] for k in range(4)]
         for mean_list in mean_lists:
             if len(mean_list) > num_of_ports + num_of_extra:
                 result = calculate(mean_list[:num_of_ports + num_of_extra])
                 result_list.append(result)
-                static_data["x"].extend(result[0])
-                static_data["y"].extend(result[1])
-                static_data["z"].extend(result[2])
+                static_data[0].extend(result[0])
+                static_data[1].extend(result[1])
+                static_data[2].extend(result[2])
+                static_data[3].append(0.5)
         tab_value = 'result-tab'
-        return tab_value, static_data
+    return tab_value, static_data
 
+# Update result graph
 @app.callback(
     Output('result-graph', 'figure'),
     Input('button', 'n_clicks'),
     State('static-data', 'children'),
     State('result-graph', 'figure'))
-def update_result_graph(data, figure):
-    figure["data"][0]["x"].extend(data["x"])
-    figure["data"][0]["y"].extend(data["y"])
-    figure["data"][0]["z"].extend(data["z"])
+def update_result_graph(button_clicks, data, figure):
+    figure["data"][0]["x"].extend(data[0])
+    figure["data"][0]["y"].extend(data[1])
+    figure["data"][0]["z"].extend(data[2])
+    figure["data"][0]["marker"]["color"].extend(data[3])
     return figure
+
+@app.callback(
+    Input('calibrate-button-1', 'n_clicks'),
+    Input('calibrate-button-2', 'n_clicks'),
+	)
+def calibrate_action(cali_clicks_1, cali_clicks_2):
+	print("calibrate action")
 
 def start_app():
     # app.run_server(debug=True)
@@ -401,5 +421,6 @@ if __name__ == '__main__':
     process = Process(target=start_app)
     process.start()
     
+    # Open website automatically
     webbrowser.open('http://127.0.0.1:8050/', new=2)
     get_data()
