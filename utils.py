@@ -26,3 +26,9 @@ std_difference = 1e-3
 collect_folder_name = "collected_data/"
 store_folder_name = "stored_data/"
 sample_rate = 1000
+
+points_x = [1, 2, 3, 4, 5, 6]
+points_y = [1, 2, 3, 4, 5, 6]
+points_z = [1, 2, 3, 4, 5, 6]
+num_of_points = len(points_x)
+points_color = [1 for k in range(num_of_points)]

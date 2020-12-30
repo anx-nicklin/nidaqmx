@@ -8,13 +8,13 @@ import pandas as pd
 
 points = {'x':[1, 2, 3], 'y':[1, 2, 3], 'z':[1, 2, 3]}
 df = pd.DataFrame(points)
-
-color = ["red", "red", "red"]
+num_of_points = 3
+color = [1 for k in range(num_of_points)]
 app = dash.Dash(__name__)
-fig = px.scatter_3d(df, x=points['x'], y=points['y'], z=points['z'], color=color)
+fig = px.scatter_3d(x=points['x'], y=points['y'], z=points['z'], color = color)
 app.layout = html.Div([
     dcc.Graph(id="result-plot", figure=fig),
-    dcc.Button(id="button", n_clicks=0)
+    html.Button(id="button", n_clicks=0)
 ])
 
 
