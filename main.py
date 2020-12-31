@@ -4,10 +4,11 @@ import dash_html_components as html
 from dash.dependencies import Input, Output, State
 import plotly
 import plotly.express as px
-import nidaqmx
-from nidaqmx.constants import Edge
-from nidaqmx.constants import AcquisitionType
-from multiprocessing import Process
+# import nidaqmx
+# from nidaqmx.constants import Edge
+# from nidaqmx.constants import AcquisitionType
+import multiprocessing
+from multiprocessing import Process, Array
 import random
 import json
 import zmq
@@ -17,17 +18,20 @@ import datetime
 import statistics
 import pandas as pd
 import os
+from ctypes import c_char
 from utils import *
 from algorithm import calculate
+from readData import read_data
 
 external_stylesheets = ['https://codepen.io/chriddyp/pen/bWLwgP.css']
 
 # Connect to nidaqmx and add all the ports to task
-task = nidaqmx.Task()
-for port_name in port_list:
-    task.ai_channels.add_ai_voltage_chan(port_name)
-https://knowledge.ni.com/KnowledgeArticleDetails?id=kA00Z0000019ZWxSAM&l=en-US
-task.timing.cfg_samp_clk_timing(sample_rate)
+# task = nidaqmx.Task()
+# for port_name in port_list:
+#     task.ai_channels.add_ai_voltage_chan(port_name)
+
+# https://knowledge.ni.com/KnowledgeArticleDetails?id=kA00Z0000019ZWxSAM&l=en-US
+# task.timing.cfg_samp_clk_timing(sample_rate)
 
 # Create different figure with different layout 
 # There are two modes: basic and group
@@ -69,6 +73,7 @@ index_layout = html.Div(
         html.Div([[] for k in range(num_of_ports)], id='data_list', style={'display': 'none'}),
         html.Div([], id='number_list', style={'display': 'none'}),
         html.Div(1, id='figure_number', style={'display': 'none'}),
+        html.Div("", id='store-file-name', style={'display': 'none'}),
         html.Div([True for k in range(num_of_ports)], id='visibility', style={'display': 'none'}),
         dcc.Interval(
             id='interval-component',
@@ -138,11 +143,12 @@ def get_data():
     start_time = time.time()
     i = 0
     while True:
-        data = task.read()
-        for j in range(num_of_ports):
-            # voltage_list[j].append(i + j)
-            voltage_list[j].append(data[j])
+        # data = task.read()
         number.append(i)
+        # number.append(time.time())
+        for j in range(num_of_ports):
+            voltage_list[j].append(i + j)
+            # voltage_list[j].append(data[j])
         time.sleep(0.3)
         cur_time = time.time()
         if cur_time - start_time >= publisher_interval:
@@ -216,7 +222,7 @@ def update_graph_live(n, basic_button, group_button, figure, data_list, number_l
     return figure, data_list, number_list, fig_num
 
 # Write data to file until killed, use read_data.py to transform into csv
-def store_data_helper():
+def store_data_helper(file_name):
     context = zmq.Context()
     socket = context.socket(zmq.SUB)
     socket.connect("tcp://localhost:%s" % port)
@@ -228,27 +234,35 @@ def store_data_helper():
     current_time = current_time.replace(".", "_")
     current_time = current_time.replace(":", "-")
     encoded_file_name = store_folder_name + "encoded_data_" + current_time + ".json"
-    data_file = open(encoded_file_name,'a')
-
+    data_file = open(encoded_file_name, "w")
+    # file_name.value = (file_name.value.decode("utf-8") + encoded_file_name).encode("utf-8")
     while True:
-        message = socket.recv()
-        decodedMessage = message.decode("utf-8")
+        # message = socket.recv()
+        # decodedMessage = message.decode("utf-8")
+        # data_file.write(decodedMessage[4 :] + "\n")
+        data_file.write("hello")
+        time.sleep(2)
         print("storing_data")
-        data_file.write(decodedMessage[4 :] + "\n")
+        f = open(encoded_file_name, "r")
+        print(f.read())
+        f.close()
 
+
+file_name = Array(c_char, 100)
+store_process = Process(target=store_data_helper, args=(file_name,))
 # Use a new process to store data
-store_process = Process(target=store_data_helper)
 @app.callback(
     Output('store-button', 'children'),
     Output('store-button-state', 'children'),
     Input('store-button', 'n_clicks'),
-    State('store-button-state', 'children') # Used for storing button state when switching tabs
+    State('store-button-state', 'children'), # Used for storing button state when switching tabs
     )
 def store_data(n_clicks, store_state):
     if n_clicks > 0:
         if store_state == "True":
             if n_clicks != 0:
                 store_process.terminate()
+                # read_data(file_name.value.decode("utf-8"))
             return "Store Data", "False"
         else:
             store_process.start()
@@ -406,12 +420,12 @@ def update_result_graph(button_clicks, data, figure):
     figure["data"][0]["marker"]["color"].extend(data[3])
     return figure
 
-@app.callback(
-    Input('calibrate-button-1', 'n_clicks'),
-    Input('calibrate-button-2', 'n_clicks'),
-	)
-def calibrate_action(cali_clicks_1, cali_clicks_2):
-	print("calibrate action")
+# @app.callback(
+#     Input('calibrate-button-1', 'n_clicks'),
+#     Input('calibrate-button-2', 'n_clicks'),
+# 	)
+# def calibrate_action(cali_clicks_1, cali_clicks_2):
+# 	print("calibrate action")
 
 def start_app():
     # app.run_server(debug=True)
