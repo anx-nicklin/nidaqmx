@@ -4,9 +4,9 @@ import dash_html_components as html
 from dash.dependencies import Input, Output, State
 import plotly
 import plotly.express as px
-# import nidaqmx
-# from nidaqmx.constants import Edge
-# from nidaqmx.constants import AcquisitionType
+import nidaqmx
+from nidaqmx.constants import Edge
+from nidaqmx.constants import AcquisitionType
 import multiprocessing
 from multiprocessing import Process, Array
 import random
@@ -25,10 +25,10 @@ from readData import read_data
 
 external_stylesheets = ['https://codepen.io/chriddyp/pen/bWLwgP.css']
 
-# Connect to nidaqmx and add all the ports to task
-# task = nidaqmx.Task()
-# for port_name in port_list:
-#     task.ai_channels.add_ai_voltage_chan(port_name)
+Connect to nidaqmx and add all the ports to task
+task = nidaqmx.Task()
+for port_name in port_list:
+    task.ai_channels.add_ai_voltage_chan(port_name)
 
 # https://knowledge.ni.com/KnowledgeArticleDetails?id=kA00Z0000019ZWxSAM&l=en-US
 # task.timing.cfg_samp_clk_timing(sample_rate)
@@ -143,12 +143,12 @@ def get_data():
     start_time = time.time()
     i = 0
     while True:
-        # data = task.read()
+        data = task.read()
         number.append(i)
         # number.append(time.time())
         for j in range(num_of_ports):
-            voltage_list[j].append(i + j)
-            # voltage_list[j].append(data[j])
+            # voltage_list[j].append(i + j)
+            voltage_list[j].append(data[j])
         time.sleep(0.3)
         cur_time = time.time()
         if cur_time - start_time >= publisher_interval:
@@ -234,19 +234,13 @@ def store_data_helper(file_name):
     current_time = current_time.replace(".", "_")
     current_time = current_time.replace(":", "-")
     encoded_file_name = store_folder_name + "encoded_data_" + current_time + ".json"
-    data_file = open(encoded_file_name, "w")
-    # file_name.value = (file_name.value.decode("utf-8") + encoded_file_name).encode("utf-8")
+    file_name.value = (file_name.value.decode("utf-8") + encoded_file_name).encode("utf-8")
     while True:
-        # message = socket.recv()
-        # decodedMessage = message.decode("utf-8")
-        # data_file.write(decodedMessage[4 :] + "\n")
-        data_file.write("hello")
-        time.sleep(2)
-        print("storing_data")
-        f = open(encoded_file_name, "r")
-        print(f.read())
-        f.close()
-
+        data_file = open(encoded_file_name, "a")
+        message = socket.recv()
+        decodedMessage = message.decode("utf-8")
+        data_file.write(decodedMessage[4 :] + "\n")
+        data_file.close()
 
 file_name = Array(c_char, 100)
 store_process = Process(target=store_data_helper, args=(file_name,))
