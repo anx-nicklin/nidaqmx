@@ -4,11 +4,11 @@ import dash_html_components as html
 from dash.dependencies import Input, Output, State
 import plotly
 import plotly.express as px
-import nidaqmx
-from nidaqmx.constants import Edge
-from nidaqmx.constants import AcquisitionType
+# import nidaqmx
+# from nidaqmx.constants import Edge
+# from nidaqmx.constants import AcquisitionType
 import multiprocessing
-from multiprocessing import Process, Array
+from multiprocessing import Process, Value, Array
 import random
 import json
 import zmq
@@ -25,7 +25,7 @@ from readData import read_data
 
 external_stylesheets = ['https://codepen.io/chriddyp/pen/bWLwgP.css']
 
-Connect to nidaqmx and add all the ports to task
+# Connect to nidaqmx and add all the ports to task
 task = nidaqmx.Task()
 for port_name in port_list:
     task.ai_channels.add_ai_voltage_chan(port_name)
@@ -222,7 +222,7 @@ def update_graph_live(n, basic_button, group_button, figure, data_list, number_l
     return figure, data_list, number_list, fig_num
 
 # Write data to file until killed, use read_data.py to transform into csv
-def store_data_helper(file_name):
+def store_data_helper(file_name, finish):
     context = zmq.Context()
     socket = context.socket(zmq.SUB)
     socket.connect("tcp://localhost:%s" % port)
@@ -234,16 +234,16 @@ def store_data_helper(file_name):
     current_time = current_time.replace(".", "_")
     current_time = current_time.replace(":", "-")
     encoded_file_name = store_folder_name + "encoded_data_" + current_time + ".json"
-    file_name.value = (file_name.value.decode("utf-8") + encoded_file_name).encode("utf-8")
-    while True:
-        data_file = open(encoded_file_name, "a")
+    data_file = open(encoded_file_name, "a")
+    file_name.value = (encoded_file_name).encode("utf-8")
+    while finish.value == 0:
+        print("Storing data")
         message = socket.recv()
         decodedMessage = message.decode("utf-8")
         data_file.write(decodedMessage[4 :] + "\n")
-        data_file.close()
 
 file_name = Array(c_char, 100)
-store_process = Process(target=store_data_helper, args=(file_name,))
+finish = Value('d', 0)
 # Use a new process to store data
 @app.callback(
     Output('store-button', 'children'),
@@ -255,10 +255,12 @@ def store_data(n_clicks, store_state):
     if n_clicks > 0:
         if store_state == "True":
             if n_clicks != 0:
-                store_process.terminate()
-                # read_data(file_name.value.decode("utf-8"))
+                finish.value = 1
+                read_data(file_name.value.decode("utf-8"))
             return "Store Data", "False"
         else:
+            finish.value = 0
+            store_process = Process(target=store_data_helper, args=(file_name, finish, ))
             store_process.start()
             return "Stop", "True"
     else:
