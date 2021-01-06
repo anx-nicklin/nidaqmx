@@ -73,7 +73,6 @@ index_layout = html.Div(
         html.Div([[] for k in range(num_of_ports)], id='data_list', style={'display': 'none'}),
         html.Div([], id='number_list', style={'display': 'none'}),
         html.Div(1, id='figure_number', style={'display': 'none'}),
-        html.Div("", id='store-file-name', style={'display': 'none'}),
         html.Div([True for k in range(num_of_ports)], id='visibility', style={'display': 'none'}),
         dcc.Interval(
             id='interval-component',
@@ -222,27 +221,26 @@ def update_graph_live(n, basic_button, group_button, figure, data_list, number_l
     return figure, data_list, number_list, fig_num
 
 # Write data to file until killed, use read_data.py to transform into csv
-def store_data_helper(file_name, finish):
+def store_data_helper(finish):
     context = zmq.Context()
     socket = context.socket(zmq.SUB)
     socket.connect("tcp://localhost:%s" % port)
     socket.setsockopt_string(zmq.SUBSCRIBE, topic)
-    if not os.path.exists(store_folder_name):
-        os.makedirs(store_folder_name)
+    if not os.path.exists(temp_folder_name):
+        os.makedirs(temp_folder_name)
     current_time = str(datetime.datetime.now())
     current_time = current_time.replace(" ", "_")
     current_time = current_time.replace(".", "_")
     current_time = current_time.replace(":", "-")
-    encoded_file_name = store_folder_name + "encoded_data_" + current_time + ".json"
-    data_file = open(encoded_file_name, "a")
-    file_name.value = (encoded_file_name).encode("utf-8")
+    stored_file_name = "stored_data_" + current_time + ".json"
+    data_file = open(temp_folder_name + stored_file_name, "a")
     while finish.value == 0:
         print("Storing data")
         message = socket.recv()
         decodedMessage = message.decode("utf-8")
         data_file.write(decodedMessage[4 :] + "\n")
+    read_data(stored_folder_name + stored_file_name)
 
-file_name = Array(c_char, 100)
 finish = Value('d', 0)
 # Use a new process to store data
 @app.callback(
@@ -256,11 +254,10 @@ def store_data(n_clicks, store_state):
         if store_state == "True":
             if n_clicks != 0:
                 finish.value = 1
-                read_data(file_name.value.decode("utf-8"))
             return "Store Data", "False"
         else:
             finish.value = 0
-            store_process = Process(target=store_data_helper, args=(file_name, finish, ))
+            store_process = Process(target=store_data_helper, args=(finish, ))
             store_process.start()
             return "Stop", "True"
     else:
