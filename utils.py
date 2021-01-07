@@ -25,7 +25,6 @@ collect_time_interval = 2
 std_difference = 1e-3
 collect_folder_name = "collected_data/"
 stored_folder_name = "stored_data/"
-temp_folder_name = "temp/"
 sample_rate = 1000
 
 points_x = [1, 2, 3, 4, 5, 6]
