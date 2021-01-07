@@ -26,9 +26,9 @@ from readData import read_data
 external_stylesheets = ['https://codepen.io/chriddyp/pen/bWLwgP.css']
 
 # Connect to nidaqmx and add all the ports to task
-task = nidaqmx.Task()
-for port_name in port_list:
-    task.ai_channels.add_ai_voltage_chan(port_name)
+# task = nidaqmx.Task()
+# for port_name in port_list:
+#     task.ai_channels.add_ai_voltage_chan(port_name)
 
 # https://knowledge.ni.com/KnowledgeArticleDetails?id=kA00Z0000019ZWxSAM&l=en-US
 # task.timing.cfg_samp_clk_timing(sample_rate)
@@ -142,12 +142,12 @@ def get_data():
     start_time = time.time()
     i = 0
     while True:
-        data = task.read()
+        # data = task.read()
         number.append(i)
         # number.append(time.time())
         for j in range(num_of_ports):
-            # voltage_list[j].append(i + j)
-            voltage_list[j].append(data[j])
+            voltage_list[j].append(i + j)
+            # voltage_list[j].append(data[j])
         time.sleep(0.3)
         cur_time = time.time()
         if cur_time - start_time >= publisher_interval:
@@ -226,20 +226,22 @@ def store_data_helper(finish):
     socket = context.socket(zmq.SUB)
     socket.connect("tcp://localhost:%s" % port)
     socket.setsockopt_string(zmq.SUBSCRIBE, topic)
-    if not os.path.exists(temp_folder_name):
-        os.makedirs(temp_folder_name)
+    if not os.path.exists(stored_folder_name):
+        os.makedirs(stored_folder_name)
     current_time = str(datetime.datetime.now())
     current_time = current_time.replace(" ", "_")
     current_time = current_time.replace(".", "_")
     current_time = current_time.replace(":", "-")
-    stored_file_name = "stored_data_" + current_time + ".json"
-    data_file = open(temp_folder_name + stored_file_name, "a")
+    stored_file_name = stored_folder_name + "stored_data_" + current_time + ".json"
+    data_file = open(stored_file_name, "a")
     while finish.value == 0:
         print("Storing data")
         message = socket.recv()
         decodedMessage = message.decode("utf-8")
         data_file.write(decodedMessage[4 :] + "\n")
-    read_data(stored_folder_name + stored_file_name)
+    data_file.close()
+    read_data(stored_file_name)
+    os.remove(stored_file_name)
 
 finish = Value('d', 0)
 # Use a new process to store data
@@ -416,9 +418,9 @@ def update_result_graph(button_clicks, data, figure):
 # @app.callback(
 #     Input('calibrate-button-1', 'n_clicks'),
 #     Input('calibrate-button-2', 'n_clicks'),
-# 	)
+#     )
 # def calibrate_action(cali_clicks_1, cali_clicks_2):
-# 	print("calibrate action")
+#     print("calibrate action")
 
 def start_app():
     # app.run_server(debug=True)
