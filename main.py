@@ -22,6 +22,8 @@ from ctypes import c_char
 from utils import *
 from algorithm import calculate
 from readData import read_data
+from cal3group import *
+import plotly.graph_objects as go
 
 external_stylesheets = ['https://codepen.io/chriddyp/pen/bWLwgP.css']
 
@@ -58,6 +60,25 @@ def create_fig(mode):
         }, specs["position"][i][0], specs["position"][i][1])
     return fig
 fig = create_fig(1)
+
+def create_result_fig(mode):
+    fig = None
+    if mode == "1":
+        fig = px.scatter_3d(x=points_x, y=points_y, z=points_z, color=points_color)
+    elif mode == "2":
+        result_rows = 5
+        result_cols = 2
+        fig = plotly.tools.make_subplots(rows=result_rows, cols=result_cols, 
+            specs = [[{'type': 'scene'}, {'type': 'scene'}], [{'type': 'scene'}, {'type': 'scene'}], [{'type': 'scene'}, 
+            {'type': 'scene'}], [{'type': 'scene'}, {'type': 'scene'}], [{'type': 'scene'}, {'type': 'scene'}]])
+            # specs=[[{'type': 'scene'}, {'type': 'scene'}, {'type': 'scene'}, {'type': 'scene'}, {'type': 'scene'}], 
+            # [{'type': 'scene'}, {'type': 'scene'}, {'type': 'scene'}, {'type': 'scene'}, {'type': 'scene'}]])# , subplot_titles=specs["subplot_titles"]
+        fig.update_layout(showlegend=False)
+        for i in range(result_rows):
+            for j in range(result_cols):
+                fig.append_trace(go.Scatter3d(x=[], y=[], z=[], mode='markers'), i + 1, j + 1)
+                    # px.scatter_3d(x=points_x, y=points_y, z=points_z, color=points_color), i, j)
+    return fig
 
 # Different tabs
 # Index tab
@@ -104,7 +125,7 @@ result_layout = html.Div(
     html.Div([
         html.H4('NI-DAQmx'),
         html.Button(id='button', n_clicks=0, style={'display': 'none'}),
-        dcc.Graph(id='result-graph', style={"height":600}, figure=px.scatter_3d(x=points_x, y=points_y, z=points_z, color=points_color)),
+        dcc.Graph(id='result-graph', style={"height":2000}),
     ])
 )
 
@@ -117,20 +138,42 @@ app.layout = html.Div([
         dcc.Tab(label='Result', value='result-tab'),
     ]),
     html.Div(index_layout, id='tab-content'),
-    html.Div([[] for k in range(4)], id='static-data', style={'display': 'none'}),
-    html.Div("False", id='store-button-state', style={'display': 'none'})
+    # html.Div([[] for k in ]range(4), id='static-data', style={'display': 'none'}),
+    html.Div({'matrix': [[[  1.,   0.,   0., -47.],
+       [  0.,   1.,   0., -48.],
+       [  0.,   0.,   1., -49.]], [[  1.03614139,   0.        ,   0.        , -47.        ],
+       [  0.        ,   0.93631447,   0.        , -48.        ],
+       [  0.        ,   0.        ,   0.83263147, -49.        ]], [[ 1.00592210e+00,  6.28143487e-11, -8.84690646e-12,
+        -4.70000000e+01],
+       [ 6.31166538e-11,  8.79464556e-01,  3.24569882e-11,
+        -4.80000000e+01],
+       [ 8.26513409e-11,  9.05096570e-11,  7.47265613e-01,
+        -4.90000000e+01]], [[  0.96843576,   0.        ,   0.        , -47.        ],
+       [  0.        ,   0.83012544,   0.        , -48.        ],
+       [  0.        ,   0.        ,   0.68211759, -49.        ]], [[  0.62408346,   0.        ,   0.        , -47.        ],
+       [  0.        ,   0.7667852 ,   0.        , -48.        ],
+       [  0.        ,   0.        ,   0.94062555, -49.        ]], [[  1.01051319,   0.        ,   0.        , -53.91269746],
+       [  0.        ,   0.63886962,   0.        , -55.05977613],
+       [  0.        ,   0.        ,   0.62944696, -56.2068548 ]]], 
+       'old_data': [[[34.5, 35.5, 36.5, 1], [59.5, 60.5, 61.5, 1]], [[37.5, 38.5, 39.5, 1], [62.5, 63.5, 64.5, 1]], [[40.5, 41.5, 42.5, 1], [65.5, 66.5, 67.5, 1]], [[43.5, 44.5, 45.5, 1], [68.5, 69.5, 70.5, 1]], [[46.5, 47.5, 48.5, 1], [71.5, 72.5, 73.5, 1]], [[49.5, 63.5, 64.5, 1], [74.5, 83.5, 84.5, 1]]], 
+       'new_data': [[[-12.5, -12.5, -12.5], [12.5, 12.5, 12.5]], [[-8.144697754524763, -11.951892890338932, -16.111056912111785], [17.758837075792073, 11.455968869181241, 4.70472985237442]], [[-6.2601550422136185, -11.502220914218626, -17.241211468106265], [18.88789740078952, 10.484392996600413, 1.4404288493655955]], [[-4.87304431318578, -11.059417810789817, -17.9636498743466], [19.337849759695956, 9.693718250564217, -0.9107102448667064]], [[-17.980119207617452, -11.577702949889897, -3.379660882984666], [-2.3780327600999556, 7.591927076483842, 20.135977837126333]], [[-3.892294490878065, -14.491555234311669, -15.607526084782755], [21.370535291295646, -1.7141628265563469, -3.0185869488122563]]]
+       }, id='static-data', style={'display': 'none'}),
+    html.Div("False", id='store-button-state', style={'display': 'none'}),
+    html.Div("2", id='result-number', style={'display': 'none'}),
 ])
 
 # Switch tabs
 @app.callback(Output('tab-content', 'children'),
               Input('tab-button', 'value'))
 def render_content(tab):
-    if tab == 'index-tab':
-        return index_layout
-    elif tab == 'collect-tab':
+    # if tab == 'index-tab':
+    #     return index_layout
+    if tab == 'collect-tab':
         return collect_layout
     elif tab == 'result-tab':
         return result_layout
+    else:
+        return index_layout
 
 # Continuously receive data from device
 def get_data():
@@ -270,13 +313,13 @@ def store_data(n_clicks, store_state):
 
 # Check if collected data are valid
 def check_data(data_list, num_of_ports):
-    var_list_local = var_list
-    if num_of_ports == num_of_extra:
-        var_list_local = extra_var_list
-    for i in range(num_of_ports):
-        difference = abs(statistics.stdev(data_list[i]) - var_list_local[i])
-        if difference > std_difference:
-            return port_list[i]
+    # var_list_local = var_list
+    # if num_of_ports == num_of_extra:
+    #     var_list_local = extra_var_list
+    # for i in range(num_of_ports):
+    #     difference = abs(statistics.stdev(data_list[i]) - var_list_local[i])
+    #     if difference > std_difference:
+    #         return port_list[i]
     return True
 
 # Collect data for static location calculation
@@ -333,16 +376,16 @@ def collect_data(collect_1_clicks, collect_2_clicks, output_clicks, clear_clicks
                     for i in range(num_of_ports_local):
                         mean_list.append(round(statistics.mean(data_list[i]), 4))
                     display_lists.append(html.P(str(len(data_list[0])) + " value collected: " + str(mean_list)))
-                    mean_list.append(len(data_list[0]))
+                    # mean_list.append(len(data_list[0]))
                     mean_lists.append(mean_list)
                 else:
                     found = False
                     for j in range(len(mean_lists)):
-                        if len(mean_lists[j]) == num_of_ports + 1:
+                        if len(mean_lists[j]) == num_of_ports:
                             for i in range(num_of_ports_local):
-                                mean_lists[j].insert(-1, round(statistics.mean(data_list[i]), 4))
-                            display_lists.append(html.P(str(len(data_list[0])) + " value collected: " + str(mean_lists[j][:-1])))
-                            mean_lists[j].append(len(data_list[0]))
+                                mean_lists[j].append(round(statistics.mean(data_list[i]), 4))
+                            display_lists.append(html.P(str(len(data_list[0])) + " value collected: " + str(mean_lists[j])))
+                            # mean_lists[j].append(len(data_list[0]))
                             found = True
                             break
                     if not found:
@@ -360,10 +403,10 @@ def collect_data(collect_1_clicks, collect_2_clicks, output_clicks, clear_clicks
             file_name = "collected_data_" + current_time
             df = pd.DataFrame(mean_lists)
             port_list_extra = port_list.copy()
-            if len(mean_lists[0]) == num_of_ports + num_of_extra + 2:
-                port_list_extra.extend(["Dev1/ai24", "Dev1/ai25", "Number of Group 1", "Number of Group 2"])
-            elif len(mean_lists[0]) == num_of_ports + 1:
-                port_list_extra.append("Number of Group 1")
+            if len(mean_lists[0]) == num_of_ports + num_of_extra:
+                port_list_extra.extend(["Dev1/ai24", "Dev1/ai25"])
+            # elif len(mean_lists[0]) == num_of_ports + 1:
+            #     port_list_extra.append("Number of Group 1")
             df.columns = port_list_extra
             if not os.path.exists(collect_folder_name):
                 os.makedirs(collect_folder_name)
@@ -383,16 +426,22 @@ def collect_data(collect_1_clicks, collect_2_clicks, output_clicks, clear_clicks
 @app.callback(
     Output('tab-button', 'value'),
     Output('static-data', 'children'),
+    Output('result-number', 'children'),
     Input('calculate-button', 'n_clicks'),
+    Input('calibrate-button-1', 'n_clicks'),
+    Input('calibrate-button-2', 'n_clicks'),
     State('mean-lists', 'children'),
-    State('tab-button', 'value'),
     State('static-data', 'children'))
-def calcluate_action(calculate_clicks, mean_lists, tab_value, static_data):
-    if calculate_clicks > 0:
+def calcluate_action(calculate_clicks, calibrate_clicks_1, calibrate_clicks_2, mean_lists, static_data):
+    changed_id = [p['prop_id'] for p in dash.callback_context.triggered][0]
+    valid = False
+    tab_value = 'collect-tab'
+    result_number = "1"
+    if 'calculate-button' in changed_id and calculate_clicks > 0:
         result_list = []
         static_data = [[] for k in range(4)]
         for mean_list in mean_lists:
-            if len(mean_list) > num_of_ports + num_of_extra:
+            if len(mean_list) == num_of_ports + num_of_extra:
                 result = calculate(mean_list[:num_of_ports + num_of_extra])
                 result_list.append(result)
                 static_data[0].extend(result[0])
@@ -400,27 +449,103 @@ def calcluate_action(calculate_clicks, mean_lists, tab_value, static_data):
                 static_data[2].extend(result[2])
                 static_data[3].append(0.5)
         tab_value = 'result-tab'
-    return tab_value, static_data
+        result_number = "1"
+    elif 'calibrate-button-1' in changed_id and calibrate_clicks_1 > 0:
+        cols = [0, 3, 6, 9, 12, 15]
+        data = {}
+        for i in range(len(cols)):
+            data[i] = [[]]
+        for mean_list in mean_lists:
+            for i in range(len(cols)):
+                c = cols[i]
+                data[i][0].append(mean_list[c:c + 3] + [1])
+        estimate_center_radius(data)
+        
+        ref = None
+        print('\nCalibration phase 1')
+        print('==========')
+        static_data = {}
+        static_data["matrix"] = []
+        static_data["old_data"] = []
+        static_data["new_data"] = []
+        for i in range(len(data)):
+            data_list, r, c = data[i]
+            print('Calibrate data list {}'.format(i + 1))
+            result = optimize(data_list, c, r)
+            data[i].append(result)
+            mat = generate_matrix(result)
+
+            transformed, nr_list, _ = transform_data(mat, data_list, 1)
+            newr = np.median(nr_list)
+            if not ref:
+                ref = newr
+            scaling = ref / newr
+            mat = generate_matrix(result, scaling)
+            transformed, nr_list, or_list = transform_data(mat, data_list, scaling)
+            # print('Mat =', mat)
+            # print('new center = {}, old center = {}'.format(
+            #     [0, 0, 0], (-mat[:, 3] / scaling).tolist()))
+            # print('corrected r = {:.5f}, std = {:.5f}, old r = {:.5f}, std = {:.5f}'.format(
+            #     np.median(nr_list), np.std(nr_list), np.median(or_list), np.std(or_list)))
+            static_data["matrix"].append(mat)
+            static_data["old_data"].append(data_list)
+            static_data["new_data"].append(transformed)
+        result_number = "2"
+        tab_value = 'result-tab'
+        print(static_data)
+    return tab_value, static_data, result_number
 
 # Update result graph
 @app.callback(
     Output('result-graph', 'figure'),
     Input('button', 'n_clicks'),
-    State('static-data', 'children'),
-    State('result-graph', 'figure'))
-def update_result_graph(button_clicks, data, figure):
-    figure["data"][0]["x"].extend(data[0])
-    figure["data"][0]["y"].extend(data[1])
-    figure["data"][0]["z"].extend(data[2])
-    figure["data"][0]["marker"]["color"].extend(data[3])
+    State('result-number', 'children'),
+    State('static-data', 'children'),)
+    # State('result-graph', 'figure'))
+def update_result_graph(button_clicks, result_number, data):
+    figure = create_result_fig(result_number)
+    print(result_number)
+    if result_number == "1":
+        figure["data"][0]["x"].extend(data[0])
+        figure["data"][0]["y"].extend(data[1])
+        figure["data"][0]["z"].extend(data[2])
+        figure["data"][0]["marker"]["color"].extend(data[3])
+
+    elif result_number == "2":
+        print(figure["data"])
+        print(figure["data"][0])
+        for i in range(5):
+            matrix = data["matrix"]
+            old_data = data["old_data"]
+            new_data = data["new_data"]
+            for j in range(len(old_data[i])):
+                # figure["data"][2 * i]["x"].append(old_data[i][j][0])
+                # figure["data"][2 * i]["y"].append(old_data[i][j][1])
+                # figure["data"][2 * i]["z"].append(old_data[i][j][2])
+                # figure["data"][2 * i + 1]["x"].append(new_data[i][j][0])
+                # figure["data"][2 * i + 1]["y"].append(new_data[i][j][1])
+                # figure["data"][2 * i + 1]["z"].append(new_data[i][j][2])
+                print(i)
+                print(j)
+                figure["data"][2 * i]["x"] = figure["data"][2 * i]["x"] + (old_data[i][j][0],)
+                figure["data"][2 * i]["y"] = figure["data"][2 * i]["y"] + (old_data[i][j][1],)
+                figure["data"][2 * i]["z"] = figure["data"][2 * i]["z"] + (old_data[i][j][2],)
+                figure["data"][2 * i + 1]["x"] = figure["data"][2 * i + 1]["x"] + (new_data[i][j][0],)
+                figure["data"][2 * i + 1]["y"] = figure["data"][2 * i + 1]["y"] + (new_data[i][j][1],)
+                figure["data"][2 * i + 1]["z"] = figure["data"][2 * i + 1]["z"] + (new_data[i][j][2],)
+
+                # figure["data"][2 * i]["marker"]["color"].extend(i)
+                # figure["data"][2 * i + 1]["marker"]["color"].extend(i)
     return figure
 
 # @app.callback(
-#     Input('calibrate-button-1', 'n_clicks'),
-#     Input('calibrate-button-2', 'n_clicks'),
+#     Output('tab-button', 'value'),
+    
+#     State('mean-lists', 'children'),
+#     State('tab-button', 'value'),
 #     )
-# def calibrate_action(cali_clicks_1, cali_clicks_2):
-#     print("calibrate action")
+# def calibrate_action(cali_clicks_1, cali_clicks_2, mean_lists, tab_value):
+
 
 def start_app():
     # app.run_server(debug=True)
