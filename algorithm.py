@@ -83,7 +83,7 @@ if __name__ == "__main__":
 	df = df.T
 	df.columns = ["x", "y", "z", "distance"]
 	df.to_csv("rough_algorithm.csv")
-	print(df)
+	# print(df)
 	# print(results)
 	# for result in results:
 	# 	print(result)
