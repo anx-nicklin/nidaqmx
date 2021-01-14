@@ -44,4 +44,5 @@ points_z = [1, 2, 3, 4, 5, 6]
 num_of_points = len(points_x)
 points_color = [1 for k in range(num_of_points)]
 
-matrix_multiplication = [[0, 1, 2], [3, 4, 5], [6, 7, 8], [9, 10, 11], [12, 13, 14], [15] + replaced_channel]
+matrix_multiplication_1 = [[0, 1, 2], [3, 4, 5], [6, 7, 8], [9, 10, 11], [12, 13, 14]]
+matrix_multiplication_2 = [[0, 1, 2], [3, 4, 5], [6, 7, 8], [9, 10, 11], [15] + replaced_channel]
