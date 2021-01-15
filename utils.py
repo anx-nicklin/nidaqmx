@@ -3,10 +3,10 @@ port_list = ["Dev1/ai0", "Dev1/ai1", "Dev1/ai2", "Dev1/ai3", "Dev1/ai4", "Dev1/a
 "Dev1/ai20", "Dev1/ai21", "Dev1/ai22", "Dev1/ai23"]
 var_list = [0.0004365496553127318, 0.00023444448933298355, 0.0002318819081556312, 0.00018601543403380557, 0.00021082701820800205, 0.00017087159124938955, 0.00025873157741958963, 
 0.00019665109361356387, 0.00036177300621802313, 0.0002467290710328135, 0.000225551196112637, 0.00022064568304907046, 0.0002658352105814952, 0.0002830671651907305, 
-# 0.0001988989053616439, 0.0002545969509871539]
-0.0014788650909157912, 0.00017007969255281415]
-# extra_var_list = [0.0014788650909157912, 0.00017007969255281415]
-extra_var_list = [0.0001988989053616439, 0.0002545969509871539]
+0.0001988989053616439, 0.0002545969509871539]
+# 0.0014788650909157912, 0.00017007969255281415]
+extra_var_list = [0.0014788650909157912, 0.00017007969255281415]
+# extra_var_list = [0.0001988989053616439, 0.0002545969509871539]
 
 num_of_ports = len(port_list)
 num_of_extra = 2
@@ -27,7 +27,7 @@ basic_specs_2 = {"position": basic_positions_2, "num_of_rows": 4, "num_of_cols":
 group_specs_1 = {"position": group_positions_1, "num_of_rows": 6, "num_of_cols": 4, "subplot_titles": group_port_names_1, "color": ["red", "red", "red", "green", 
 "green", "green", "orange", "orange", "orange", "cyan", "cyan", "cyan", "lime", "lime", "lime", "purple"]}
 group_specs_2 = {"position": group_positions_2, "num_of_rows": 6, "num_of_cols": 4, "subplot_titles": group_port_names_2, "color": ["red", "red", "red", "green", 
-"green", "green", "orange", "orange", "orange", "cyan", "cyan", "cyan", "lime", "lime", "lime", "purple"]}
+"green", "green", "orange", "orange", "orange", "cyan", "cyan", "cyan", "purple", "lime", "lime", "lime"]}
 port = "5556"
 topic = "100"
 publisher_interval = 1.5

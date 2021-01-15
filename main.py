@@ -4,11 +4,11 @@ import dash_html_components as html
 from dash.dependencies import Input, Output, State
 import plotly
 import plotly.express as px
-# import nidaqmx
-# from nidaqmx.constants import Edge
-# from nidaqmx.constants import AcquisitionType
+import nidaqmx
+from nidaqmx.constants import Edge
+from nidaqmx.constants import AcquisitionType
 import multiprocessing
-from multiprocessing import Process, Value, Array
+from multiprocessing import Process, Value, Array, Manager
 import random
 import json
 import zmq
@@ -28,9 +28,14 @@ import plotly.graph_objects as go
 external_stylesheets = ['https://codepen.io/chriddyp/pen/bWLwgP.css']
 
 # Connect to nidaqmx and add all the ports to task
-# task = nidaqmx.Task()
-# for port_name in port_list:
-#     task.ai_channels.add_ai_voltage_chan(port_name)
+task = nidaqmx.Task()
+for port_name in port_list:
+    task.ai_channels.add_ai_voltage_chan(port_name)
+
+# manager = Manager()
+# global_static_data = manager.Value(c_wchar_p, json.dumps({}))
+global_static_data = Array('c', 100000)
+global_static_data.value = bytes(json.dumps({}), 'utf-8')
 
 # https://knowledge.ni.com/KnowledgeArticleDetails?id=kA00Z0000019ZWxSAM&l=en-US
 # task.timing.cfg_samp_clk_timing(sample_rate)
@@ -57,7 +62,7 @@ def create_fig(mode):
     # Initialize all the plots
     for i in range(num_of_ports):
         fig.append_trace({
-            'name': port_list[i],
+            'name': specs["subplot_titles"][i],
             'mode': 'lines+markers',
             'type': 'scatter',
             'line': {'color': specs['color'][i]}
@@ -68,14 +73,18 @@ fig = create_fig(1)
 def create_result_fig(mode):
     fig = None
     if mode == "1":
-        fig = px.scatter_3d(x=points_x, y=points_y, z=points_z, color=points_color)
+        fig = px.scatter_3d(x=points_x, y=points_y, z=points_z, color=points_color, height=1000)
     elif mode == "2":
         result_rows = 5
         result_cols = 2
         fig = plotly.tools.make_subplots(rows=result_rows, cols=result_cols, 
             specs = [[{'type': 'scene'}, {'type': 'scene'}], [{'type': 'scene'}, {'type': 'scene'}], [{'type': 'scene'}, 
             {'type': 'scene'}], [{'type': 'scene'}, {'type': 'scene'}], [{'type': 'scene'}, {'type': 'scene'}]])
+        fig['layout']['margin'] = {
+            'l': 0, 'r': 0, 'b': 0, 't': 0
+        }
         fig.update_layout(showlegend=False)
+        fig['layout']['height'] = 3000
         for i in range(result_rows):
             for j in range(result_cols):
                 fig.append_trace(go.Scatter3d(x=[], y=[], z=[], mode='markers'), i + 1, j + 1)
@@ -87,10 +96,8 @@ index_layout = html.Div(
     html.Div([
         html.H4('NI-DAQmx'),
         html.Div(id='live-update-text'),
-        html.Button("Basic Mode 1", id='basic-button-1', n_clicks=0),
-        html.Button("Basic Mode 2", id='basic-button-2', n_clicks=0),
-        html.Button("Group Mode 1", id='group-button-1', n_clicks=0),
-        html.Button("Group Mode 2", id='group-button-2', n_clicks=0),
+        html.Button("Basic Mode 2", id='basic-button', n_clicks=0),
+        html.Button("Group Mode 2", id='group-button', n_clicks=0),
         html.Br(),
         html.Button(id='store-button', n_clicks=0),
         dcc.Graph(id='live-update-graph', style={"height":800}, figure=fig),
@@ -128,8 +135,8 @@ result_layout = html.Div(
         html.H4('NI-DAQmx'),
         html.Button(id='apply-button', n_clicks=0, style={'display': 'none'}),
         html.Div(
-        	[html.Div(id='matrix-value', style={'float': 'left', 'width': '20%', 'height': '2000px'}),
-        	html.Div(dcc.Graph(id='result-graph', style={"height":2000, 'width': '79%', 'float': 'right'}))], style={'width': '100%'}
+        	[html.Div(id='matrix-value', style={'float': 'left', 'width': '20%', 'height': '3000px'}),
+        	html.Div(dcc.Graph(id='result-graph', style={"height": '3000px', 'width': '79%', 'float': 'right'}))], style={'width': '100%'}
         ),
     ])
 )
@@ -144,6 +151,7 @@ app.layout = html.Div([
     ]),
     html.Div(index_layout, id='tab-content'),
     html.Div(json.dumps([]), id='mean-lists', style={'display': 'none'}),
+    html.Div(json.dumps([]), id='collected-data', style={'display': 'none'}),
     html.Div([], id='display-lists-content', style={'display': 'none'}),
     html.Div(json.dumps([]), id='static-data', style={'display': 'none'}),
     html.Div("False", id='store-button-state', style={'display': 'none'}),
@@ -173,13 +181,13 @@ def get_data():
     start_time = time.time()
     i = 0
     while True:
-        # data = task.read()
+        data = task.read()
         number.append(i)
         # number.append(time.time())
         for j in range(num_of_ports):
-            voltage_list[j].append(i + j)
-            # voltage_list[j].append(data[j])
-        time.sleep(0.3)
+            # voltage_list[j].append(i + j)
+            voltage_list[j].append(data[j])
+        # time.sleep(0.3)
         cur_time = time.time()
         if cur_time - start_time >= publisher_interval:
             message = json.dumps({'x': number, 'y': voltage_list})
@@ -199,11 +207,13 @@ sub.setsockopt_string(zmq.SUBSCRIBE, topic)
     Output('data_list', 'children'),
     Output('number_list', 'children'),
     Output('figure_number', 'children'),
+    Output('basic-button', 'children'),
+    Output('group-button', 'children'),
     Input('interval-component', 'n_intervals'),
-    Input('basic-button-1', 'n_clicks'),
-    Input('basic-button-2', 'n_clicks'),
-    Input('group-button-1', 'n_clicks'),
-    Input('group-button-2', 'n_clicks'),
+    Input('basic-button', 'n_clicks'),
+    Input('group-button', 'n_clicks'),
+    State('basic-button', 'children'),
+    State('group-button', 'children'),
     State('live-update-graph', 'figure'),
     State('data_list', 'children'),
     State('number_list', 'children'),
@@ -212,24 +222,30 @@ sub.setsockopt_string(zmq.SUBSCRIBE, topic)
     State('apply-state', 'children'),
     State('calibration-type', 'children'),
 )
-def update_graph_live(n, basic_button_1, basic_button_2, group_button_1, group_button_2, figure, data_list, number_list, fig_num, static_data, apply_state, calibration_type):
+def update_graph_live(n, basic_clicks, group_clicks, basic_button_text, group_button_text, figure, data_list, number_list, fig_num, static_data, apply_state, calibration_type):
     changed_id = [p['prop_id'] for p in dash.callback_context.triggered][0]
     # Use different figure layout with different mode
     data_list = json.loads(data_list)
     if 'button' in changed_id:
         legend = False
-        if 'basic-button-1' in changed_id:
-            fig_num = 1
-            legend = False
-        elif 'basic-button-2' in changed_id:
-            fig_num = 2
-            legend = False
-        elif 'group-button-1' in changed_id:
-            fig_num = 3
-            legend = True
-        elif 'group-button-2' in changed_id:
-            fig_num = 4
-            legend = True
+        if 'basic-button' in changed_id:
+            if basic_button_text == "Basic Mode 2":
+                fig_num = 2
+                legend = False
+                basic_button_text = "Basic Mode 1"
+            else:
+                fig_num = 1
+                legend = False
+                basic_button_text = "Basic Mode 2"
+        elif 'group-button' in changed_id:
+            if group_button_text == "Group Mode 2":
+                fig_num = 4
+                legend = True
+                group_button_text = "Group Mode 1"
+            else:
+                fig_num = 3
+                legend = True
+                group_button_text = "Group Mode 2"
         figure = create_fig(fig_num)
         figure.update_layout(showlegend=legend)
 
@@ -286,7 +302,7 @@ def update_graph_live(n, basic_button_1, basic_button_2, group_button_1, group_b
                 xaxis_name = xaxis_name + str(i + 1)
             figure["layout"][xaxis_name]["range"] = [number_list[-1] - limit, number_list[-1]]
     data_list = json.dumps(data_list)
-    return figure, data_list, number_list, fig_num
+    return figure, data_list, number_list, fig_num, basic_button_text, group_button_text
 
 # Write data to file until killed, use read_data.py to transform into csv
 def store_data_helper(finish):
@@ -338,12 +354,12 @@ def store_data(n_clicks, store_state):
 
 # Check if collected data are valid
 def check_data(data_list):
-    # var_list_local = var_list
-    # for i in range(num_of_ports):
-    #     if len(data_list[i]) > 0:
-    #         difference = abs(statistics.stdev(data_list[i]) - var_list_local[i])
-    #         if difference > std_difference:
-    #             return port_list[i]
+    var_list_local = var_list
+    for i in range(num_of_ports):
+        if len(data_list[i]) > 0:
+            difference = abs(statistics.stdev(data_list[i]) - var_list_local[i])
+            if difference > std_difference:
+                return port_list[i]
     return True
 
 # Collect data for static location calculation
@@ -353,27 +369,30 @@ def check_data(data_list):
     Output('mean-lists', 'children'),
     Output('display-lists-content', 'children'),
     Output('display-lists', 'children'),
+    Output('collected-data', 'children'),
     Input('collect-button-1', 'n_clicks'),
     Input('collect-button-2', 'n_clicks'),
     Input('output-button', 'n_clicks'),
     Input('clear-button', 'n_clicks'),
     State('collect-graph', 'figure'),
     State('mean-lists', 'children'),
+    State('collected-data', 'children'),
     State('display-lists-content', 'children'),
     )
-def collect_data(collect_1_clicks, collect_2_clicks, output_clicks, clear_clicks, figure, mean_lists, display_lists_content):
+def collect_data(collect_1_clicks, collect_2_clicks, output_clicks, clear_clicks, figure, mean_lists, collected_data, display_lists_content):
     changed_id = [p['prop_id'] for p in dash.callback_context.triggered][0]
     valid = False
     mean_lists = json.loads(mean_lists)
+    data_list = json.loads(collected_data)
     if 'collect-button' in changed_id and (collect_1_clicks > 0 or collect_2_clicks > 0):
     	# Collect different number of channels
+        data_list = [[] for k in range(num_of_ports + 2)]
         collect_context = zmq.Context()
         collect_socket = collect_context.socket(zmq.SUB)
         collect_socket.connect("tcp://localhost:%s" % port)
         collect_socket.setsockopt_string(zmq.SUBSCRIBE, topic)
         start_time = time.time()
         cur_time = start_time
-        data_list = [[] for k in range(num_of_ports + 2)]
         mean_list = []
         number_list = []
         group_number_list = []
@@ -439,11 +458,11 @@ def collect_data(collect_1_clicks, collect_2_clicks, output_clicks, clear_clicks
             current_time = current_time.replace(":", "-")
             file_name = "collected_data_" + current_time
             df = pd.DataFrame(mean_lists)
-            port_list_extra = port_list.copy()
+            port_list_extra = basic_port_names_1.copy()
             if len(mean_lists[0]) == num_of_ports + num_of_extra:
-                port_list_extra.extend(["Dev1/ai24", "Dev1/ai25"])
+                port_list_extra.extend(["5y", "5z"])
             # elif len(mean_lists[0]) == num_of_ports + 1:
-            #     port_list_extra.append("Number of Group 1")
+            #   port_list_extra.append("Number of Group 1")
             df.columns = port_list_extra
             if not os.path.exists(collect_folder_name):
                 os.makedirs(collect_folder_name)
@@ -458,51 +477,54 @@ def collect_data(collect_1_clicks, collect_2_clicks, output_clicks, clear_clicks
             figure = create_fig(1)
     display_text = str(len(mean_lists)) + " groups collected"
     mean_lists = json.dumps(mean_lists)
-    return figure, display_text, mean_lists, display_lists_content, display_lists_content
+    data_list = json.dumps(data_list)
+    return figure, display_text, mean_lists, display_lists_content, display_lists_content, data_list
 
-def calibrate(mean_lists, type):
+def calibrate(collected_data, type, global_static_data):
     cols = [0, 3, 6, 9, 12]
     data = {}
-    for i in range(len(cols)):
-        data[i] = [[]]
-    for mean_list in mean_lists:
-        if type == 1 or (type == 2 and len(mean_list) > num_of_ports):
-            for i in range(len(cols)):
-                c = cols[i]
-                if type == 2 and replaced_channel[0] in [c, c + 1, c + 2] and len(mean_list) > num_of_ports:
-                    data[i][0].append([mean_list[15], mean_list[16], mean_list[17]])
-                else:
-                    data[i][0].append(mean_list[c:c + 3] + [1])
-    estimate_center_radius(data)
-
     ref = None
     static_data = {}
     static_data["matrix"] = []
     static_data["old_data"] = []
     static_data["new_data"] = []
-    for i in range(len(data)):
-        data_list, r, c = data[i]
-        print('Calibrate data list {}'.format(i + 1))
-        result = optimize(data_list, c, r)
-        data[i].append(result)
-        mat = generate_matrix(result)
+    data = {}
+    for i in range(len(cols)):
+        data[i] = [[]]
+        c = cols[i]
+        row = []
+        for j in range(len(collected_data[0])):
+            if type == 2 and replaced_channel[0] in [c, c + 1, c + 2] and len(collected_data) > num_of_ports:
+                data[i][0].append([collected_data[15][j], collected_data[16][j], collected_data[17][j], 1])
+            else:
+                data[i][0].append([collected_data[c][j], collected_data[c + 1][j], collected_data[c + 2][j], 1])
+    if len(data[0]) > 0:
+        estimate_center_radius(data)
+        for i in range(len(data)):
+            data_list, r, c = data[i]
+            print('Calibrate data list {}'.format(i + 1))
+            result = optimize(data_list, c, r)
+            data[i].append(result)
+            mat = generate_matrix(result)
 
-        transformed, nr_list, _ = transform_data(mat, data_list, 1)
-        newr = np.median(nr_list)
-        if not ref:
-            ref = newr
-        scaling = ref / newr
-        mat = generate_matrix(result, scaling)
-        transformed, nr_list, or_list = transform_data(mat, data_list, scaling)
-        # print('Mat =', mat)
-        # print('new center = {}, old center = {}'.format(
-        #     [0, 0, 0], (-mat[:, 3] / scaling).tolist()))
-        # print('corrected r = {:.5f}, std = {:.5f}, old r = {:.5f}, std = {:.5f}'.format(
-        #     np.median(nr_list), np.std(nr_list), np.median(or_list), np.std(or_list)))
-        static_data["matrix"].append(mat.tolist())
-        static_data["old_data"].append(data_list)
-        static_data["new_data"].append(transformed)
-    return static_data
+            transformed, nr_list, _ = transform_data(mat, data_list, 1)
+            newr = np.median(nr_list)
+            if not ref:
+                ref = newr
+            scaling = ref / newr
+            mat = generate_matrix(result, scaling)
+            transformed, nr_list, or_list = transform_data(mat, data_list, scaling)
+            # print('Mat =', mat)
+            # print('new center = {}, old center = {}'.format(
+            #   [0, 0, 0], (-mat[:, 3] / scaling).tolist()))
+            # print('corrected r = {:.5f}, std = {:.5f}, old r = {:.5f}, std = {:.5f}'.format(
+            #   np.median(nr_list), np.std(nr_list), np.median(or_list), np.std(or_list)))
+            static_data["matrix"].append(mat.tolist())
+            static_data["old_data"].append(data_list)
+            static_data["new_data"].append(transformed)
+            global_static_data.value = bytes(json.dumps(static_data), 'utf-8')
+    # return static_data
+
 
 # Calculate use collected data
 @app.callback(
@@ -514,15 +536,15 @@ def calibrate(mean_lists, type):
     Input('calibrate-button-1', 'n_clicks'),
     Input('calibrate-button-2', 'n_clicks'),
     State('result-number', 'children'),
-    State('mean-lists', 'children'))
-def calcluate_action(calculate_clicks, calibrate_clicks_1, calibrate_clicks_2, result_number, mean_lists):
+    State('mean-lists', 'children'),
+    State('collected-data', 'children'))
+def calclulate_action(calculate_clicks, calibrate_clicks_1, calibrate_clicks_2, result_number, mean_lists, collected_data):
     changed_id = [p['prop_id'] for p in dash.callback_context.triggered][0]
-    valid = False
     tab_value = 'collect-tab'
-    mean_lists = json.loads(mean_lists)
-    static_data = []
     calibration_type = 1
+    static_data = []
     if 'calculate-button' in changed_id and calculate_clicks > 0:
+        mean_lists = json.loads(mean_lists)
         result_number = "1"
         result_list = []
         static_data = [[] for k in range(4)]
@@ -535,15 +557,17 @@ def calcluate_action(calculate_clicks, calibrate_clicks_1, calibrate_clicks_2, r
                 static_data[2].extend(result[2])
                 static_data[3].append(0.5)
         tab_value = 'result-tab'
-    elif 'calibrate-button-1' in changed_id and calibrate_clicks_1 > 0:
-        static_data = calibrate(mean_lists, 1)
-        result_number = "2"
-        tab_value = 'result-tab'
-    elif 'calibrate-button-2' in changed_id and calibrate_clicks_2 > 0:
-        static_data = calibrate(mean_lists, 2)
-        result_number = "2"
-        tab_value = 'result-tab'
-        calibration_type = 2
+    elif 'calibrate-button' in changed_id:
+        collected_data = json.loads(collected_data)
+        if 'calibrate-button-1' in changed_id and calibrate_clicks_1 > 0:
+            calibrate_process = Process(target=calibrate, args=(collected_data, 1, global_static_data,))
+            calibrate_process.start()
+            result_number = "2"
+        elif 'calibrate-button-2' in changed_id and calibrate_clicks_2 > 0:
+            calibrate_process = Process(target=calibrate, args=(collected_data, 2, global_static_data,))
+            calibrate_process.start()
+            result_number = "2"
+            calibration_type = 2
     static_data = json.dumps(static_data)
     return tab_value, static_data, result_number, calibration_type
 
@@ -570,29 +594,31 @@ def update_result_graph(apply_clicks, result_number, data, apply_state):
         figure["data"][0]["z"] = np.hstack([figure["data"][0]["z"], data[2]])
         figure["data"][0]["marker"]["color"] = np.hstack([figure["data"][0]["marker"]["color"], data[3]])
 
-    elif result_number == "2" and len(data) > 0:
-        matrix_data = data["matrix"]
-        old_data = data["old_data"]
-        new_data = data["new_data"]
-        for i in range(5):
-            for j in range(len(old_data[i])):
-                figure["data"][2 * i]["x"] = figure["data"][2 * i]["x"] + (old_data[i][j][0],)
-                figure["data"][2 * i]["y"] = figure["data"][2 * i]["y"] + (old_data[i][j][1],)
-                figure["data"][2 * i]["z"] = figure["data"][2 * i]["z"] + (old_data[i][j][2],)
-                figure["data"][2 * i + 1]["x"] = figure["data"][2 * i + 1]["x"] + (new_data[i][j][0],)
-                figure["data"][2 * i + 1]["y"] = figure["data"][2 * i + 1]["y"] + (new_data[i][j][1],)
-                figure["data"][2 * i + 1]["z"] = figure["data"][2 * i + 1]["z"] + (new_data[i][j][2],)
+    elif result_number == "2":
+        data = json.loads(global_static_data.value.decode('utf-8'))
+        if len(data) > 0:
+            matrix_data = data["matrix"]
+            old_data = data["old_data"]
+            new_data = data["new_data"]
+            for i in range(len(old_data)):
+                for j in range(len(old_data[i])):
+                    figure["data"][2 * i]["x"] = figure["data"][2 * i]["x"] + (old_data[i][j][0],)
+                    figure["data"][2 * i]["y"] = figure["data"][2 * i]["y"] + (old_data[i][j][1],)
+                    figure["data"][2 * i]["z"] = figure["data"][2 * i]["z"] + (old_data[i][j][2],)
+                    figure["data"][2 * i + 1]["x"] = figure["data"][2 * i + 1]["x"] + (new_data[i][j][0],)
+                    figure["data"][2 * i + 1]["y"] = figure["data"][2 * i + 1]["y"] + (new_data[i][j][1],)
+                    figure["data"][2 * i + 1]["z"] = figure["data"][2 * i + 1]["z"] + (new_data[i][j][2],)
 
-        for matrix in matrix_data:
-            matrix_list = []
-            for matrix_row in matrix:
-                row = ""
-                for matrix_number in matrix_row:
-                    row = row + str(round(matrix_number, 4)) + " "
-                matrix_list.append(html.P(row))
-            matrix_div = html.Div(matrix_list, style={'height': '200px', 'margin-top': '200px', 'margin-bottom': '200px'})
-            matrix_value.append(matrix_div)
-        style = {'display': 'block'}
+            for matrix in matrix_data:
+                matrix_list = []
+                for matrix_row in matrix:
+                    row = ""
+                    for matrix_number in matrix_row:
+                        row = row + str(round(matrix_number, 4)) + " "
+                    matrix_list.append(html.P(row))
+                matrix_div = html.Div(matrix_list, style={'height': '200px', 'margin-top': '200px', 'margin-bottom': '450px'})
+                matrix_value.append(matrix_div)
+            style = {'display': 'block'}
 
     if apply_clicks > 0:
     	if apply_state == "Apply Calibration":
@@ -608,7 +634,6 @@ def start_app():
 if __name__ == '__main__':
     process = Process(target=start_app)
     process.start()
-    
     # Open website automatically
     webbrowser.open('http://127.0.0.1:8050/', new=2)
     get_data()
