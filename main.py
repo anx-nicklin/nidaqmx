@@ -36,6 +36,7 @@ for port_name in port_list:
 # global_static_data = manager.Value(c_wchar_p, json.dumps({}))
 global_static_data = Array('c', 100000)
 global_static_data.value = bytes(json.dumps({}), 'utf-8')
+calibration_complete = Value('d', 0)
 
 # https://knowledge.ni.com/KnowledgeArticleDetails?id=kA00Z0000019ZWxSAM&l=en-US
 # task.timing.cfg_samp_clk_timing(sample_rate)
@@ -96,8 +97,11 @@ index_layout = html.Div(
     html.Div([
         html.H4('NI-DAQmx'),
         html.Div(id='live-update-text'),
-        html.Button("Basic Mode 2", id='basic-button', n_clicks=0),
-        html.Button("Group Mode 2", id='group-button', n_clicks=0),
+        html.Div(
+            [html.Button("Basic Mode 2", id='basic-button', n_clicks=0),
+            html.Button("Group Mode 2", id='group-button', n_clicks=0),
+            html.P(id='calibration-status', style={'float': 'right'}),]
+        ),
         html.Br(),
         html.Button(id='store-button', n_clicks=0),
         dcc.Graph(id='live-update-graph', style={"height":800}, figure=fig),
@@ -209,6 +213,7 @@ sub.setsockopt_string(zmq.SUBSCRIBE, topic)
     Output('figure_number', 'children'),
     Output('basic-button', 'children'),
     Output('group-button', 'children'),
+    Output('calibration-status', 'children'),
     Input('interval-component', 'n_intervals'),
     Input('basic-button', 'n_clicks'),
     Input('group-button', 'n_clicks'),
@@ -226,6 +231,9 @@ def update_graph_live(n, basic_clicks, group_clicks, basic_button_text, group_bu
     changed_id = [p['prop_id'] for p in dash.callback_context.triggered][0]
     # Use different figure layout with different mode
     data_list = json.loads(data_list)
+    calibration_status = ""
+    if calibration_complete.value == 1:
+        calibration_status = "Calibration Complete"
     if 'button' in changed_id:
         legend = False
         if 'basic-button' in changed_id:
@@ -272,11 +280,11 @@ def update_graph_live(n, basic_clicks, group_clicks, basic_button_text, group_bu
             data_list[i].extend(data["y"][i])
             data_list[i] = data_list[i][-limit:]
         data = data_list
+        static_data = json.loads(global_static_data.value.decode('utf-8'))
         if apply_state == "Stop" and len(static_data) > 0:
             matrix_multiplication = matrix_multiplication_1
             if calibration_type == 2:
                 matrix_multiplication = matrix_multiplication_2
-            static_data = json.loads(static_data)
             matrix_list = static_data['matrix']
             ones = np.array([1 for k in range(len(data_list[0]))])
             new_data_list = [[] for k in range(num_of_ports)]
@@ -294,6 +302,7 @@ def update_graph_live(n, basic_clicks, group_clicks, basic_button_text, group_bu
                     new_data_list[j] = new_point[l].tolist()
                     l = l + 1
             data = new_data_list
+            calibration_result_temp = global_static_data
         for i in range(num_of_ports):
             figure["data"][i]["x"] = number_list
             figure["data"][i]["y"] = data[i]
@@ -302,7 +311,7 @@ def update_graph_live(n, basic_clicks, group_clicks, basic_button_text, group_bu
                 xaxis_name = xaxis_name + str(i + 1)
             figure["layout"][xaxis_name]["range"] = [number_list[-1] - limit, number_list[-1]]
     data_list = json.dumps(data_list)
-    return figure, data_list, number_list, fig_num, basic_button_text, group_button_text
+    return figure, data_list, number_list, fig_num, basic_button_text, group_button_text, calibration_status
 
 # Write data to file until killed, use read_data.py to transform into csv
 def store_data_helper(finish):
@@ -354,12 +363,12 @@ def store_data(n_clicks, store_state):
 
 # Check if collected data are valid
 def check_data(data_list):
-    var_list_local = var_list
-    for i in range(num_of_ports):
-        if len(data_list[i]) > 0:
-            difference = abs(statistics.stdev(data_list[i]) - var_list_local[i])
-            if difference > std_difference:
-                return port_list[i]
+    # var_list_local = var_list
+    # for i in range(num_of_ports):
+    #     if len(data_list[i]) > 0:
+    #         difference = abs(statistics.stdev(data_list[i]) - var_list_local[i])
+    #         if difference > std_difference:
+    #             return port_list[i]
     return True
 
 # Collect data for static location calculation
@@ -480,7 +489,7 @@ def collect_data(collect_1_clicks, collect_2_clicks, output_clicks, clear_clicks
     data_list = json.dumps(data_list)
     return figure, display_text, mean_lists, display_lists_content, display_lists_content, data_list
 
-def calibrate(collected_data, type, global_static_data):
+def calibrate(collected_data, type, global_static_data, calibration_complete):
     cols = [0, 3, 6, 9, 12]
     data = {}
     ref = None
@@ -489,6 +498,7 @@ def calibrate(collected_data, type, global_static_data):
     static_data["old_data"] = []
     static_data["new_data"] = []
     data = {}
+    calibration_complete.value = 0
     for i in range(len(cols)):
         data[i] = [[]]
         c = cols[i]
@@ -522,7 +532,8 @@ def calibrate(collected_data, type, global_static_data):
             static_data["matrix"].append(mat.tolist())
             static_data["old_data"].append(data_list)
             static_data["new_data"].append(transformed)
-            global_static_data.value = bytes(json.dumps(static_data), 'utf-8')
+        calibration_complete.value = 1
+        global_static_data.value = bytes(json.dumps(static_data), 'utf-8')
     # return static_data
 
 
@@ -560,14 +571,15 @@ def calclulate_action(calculate_clicks, calibrate_clicks_1, calibrate_clicks_2, 
     elif 'calibrate-button' in changed_id:
         collected_data = json.loads(collected_data)
         if 'calibrate-button-1' in changed_id and calibrate_clicks_1 > 0:
-            calibrate_process = Process(target=calibrate, args=(collected_data, 1, global_static_data,))
+            calibrate_process = Process(target=calibrate, args=(collected_data, 1, global_static_data, calibration_complete,))
             calibrate_process.start()
             result_number = "2"
         elif 'calibrate-button-2' in changed_id and calibrate_clicks_2 > 0:
-            calibrate_process = Process(target=calibrate, args=(collected_data, 2, global_static_data,))
+            calibrate_process = Process(target=calibrate, args=(collected_data, 2, global_static_data, calibration_complete))
             calibrate_process.start()
             result_number = "2"
             calibration_type = 2
+        tab_value = 'index-tab'
     static_data = json.dumps(static_data)
     return tab_value, static_data, result_number, calibration_type
 
