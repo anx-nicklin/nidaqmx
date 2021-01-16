@@ -12,22 +12,24 @@ num_of_ports = len(port_list)
 num_of_extra = 2
 basic_port_names_1 = ["0x", "0y", "0z", "1x", "1y", "1z", "2x", "2y", "2z", "3x", "3y", "3z", "4x", "4y", "4z", "5x"]
 basic_port_names_2 = ["0x", "0y", "0z", "1x", "1y", "1z", "2x", "2y", "2z", "3x", "3y", "3z", "5x", "5y", "5z", "4z"]
-group_port_names_1 = ["0x", "1x", "2x", "3x", "0y", "1y", "2y", "3y", "0z", "1z", "2z", "3z", "4x", "5x", "", "", "4y", "", "", "", "4z"]
-group_port_names_2 = ["0x", "1x", "2x", "3x", "0y", "1y", "2y", "3y", "0z", "1z", "2z", "3z", "5x", "4z", "", "", "5y", "", "", "", "5z"]
+group_port_names_1 = ["0x", "0y", "0z", "1x", "1y", "1z", "2x", "2y", "2z", "3x", "3y", "3z", "4x", "4y", "4z", "5x"]
+group_port_names_2 = ["0x", "0y", "0z", "1x", "1y", "1z", "2x", "2y", "2z", "3x", "3y", "3z", "5y", "5z", "4x", "5x"]
+group_title_names_1 = ["0x", "1x", "2x", "3x", "0y", "1y", "2y", "3y", "0z", "1z", "2z", "3z", "4x", "5x", "", "", "4y", "", "", "", "4z"]
+group_title_names_2 = ["0x", "1x", "2x", "3x", "0y", "1y", "2y", "3y", "0z", "1z", "2z", "3z", "5x", "4x", "", "", "5y", "", "", "", "5z"]
 basic_positions_1 = [[1, 1], [1, 2], [1, 3], [1, 4], [2, 1], [2, 2], [2, 3], [2, 4], [3, 1], [3, 2], [3, 3], [3, 4], [4, 1], [4, 2], [4, 3], [4, 4]]
 basic_positions_2 = [[1, 1], [1, 2], [1, 3], [1, 4], [2, 1], [2, 2], [2, 3], [2, 4], [3, 1], [3, 2], [3, 3], [3, 4], [4, 2], [4, 3], [4, 4], [4, 1]]
 group_positions_1 = [[1, 1], [2, 1], [3, 1], [1, 2], [2, 2], [3, 2], [1, 3], [2, 3], [3, 3], [1, 4], [2, 4], [3, 4], [4, 1], [5, 1], [6, 1], [4, 2]]
 group_positions_2 = [[1, 1], [2, 1], [3, 1], [1, 2], [2, 2], [3, 2], [1, 3], [2, 3], [3, 3], [1, 4], [2, 4], [3, 4], [5, 1], [6, 1], [4, 2], [4, 1]]
 replaced_channel = [12, 13]
 
-basic_specs_1 = {"position": basic_positions_1, "num_of_rows": 4, "num_of_cols": 4, "subplot_titles": basic_port_names_1, "color": ["red", "cyan", "yellow", "darkblue", 
+basic_specs_1 = {"position": basic_positions_1, "num_of_rows": 4, "num_of_cols": 4, "port_names": basic_port_names_1, "subplot_titles": basic_port_names_1, "color": ["red", "cyan", "yellow", "darkblue", 
 "deeppink", "purple", "blue", "brown", "maroon", "orange", "lime", "magenta", "green", "darkkhaki", "darkorange", "darkgreen"]}
-basic_specs_2 = {"position": basic_positions_2, "num_of_rows": 4, "num_of_cols": 4, "subplot_titles": basic_port_names_2, "color": ["red", "cyan", "yellow", "darkblue", 
+basic_specs_2 = {"position": basic_positions_2, "num_of_rows": 4, "num_of_cols": 4, "port_names": basic_port_names_2, "subplot_titles": basic_port_names_2, "color": ["red", "cyan", "yellow", "darkblue", 
 "deeppink", "purple", "blue", "brown", "maroon", "orange", "lime", "magenta", "green", "darkkhaki", "darkorange", "darkgreen"]}
-group_specs_1 = {"position": group_positions_1, "num_of_rows": 6, "num_of_cols": 4, "subplot_titles": group_port_names_1, "color": ["red", "red", "red", "green", 
-"green", "green", "orange", "orange", "orange", "cyan", "cyan", "cyan", "lime", "lime", "lime", "purple"]}
-group_specs_2 = {"position": group_positions_2, "num_of_rows": 6, "num_of_cols": 4, "subplot_titles": group_port_names_2, "color": ["red", "red", "red", "green", 
-"green", "green", "orange", "orange", "orange", "cyan", "cyan", "cyan", "purple", "lime", "lime", "lime"]}
+group_specs_1 = {"position": group_positions_1, "num_of_rows": 6, "num_of_cols": 4, "port_names": group_port_names_1, "subplot_titles": group_title_names_1, "color": ["red", "red", "red", "green", 
+"green", "green", "orange", "orange", "orange", "cyan", "cyan", "cyan", "purple", "purple", "purple", "lime"]}
+group_specs_2 = {"position": group_positions_2, "num_of_rows": 6, "num_of_cols": 4, "port_names": group_port_names_2, "subplot_titles": group_title_names_2, "color": ["red", "red", "red", "green", 
+"green", "green", "orange", "orange", "orange", "cyan", "cyan", "cyan", "purple", "purple", "lime", "purple"]}
 port = "5556"
 topic = "100"
 publisher_interval = 1.5
@@ -44,5 +46,7 @@ points_z = [1, 2, 3, 4, 5, 6]
 num_of_points = len(points_x)
 points_color = [1 for k in range(num_of_points)]
 
-matrix_multiplication_1 = [[0, 1, 2], [3, 4, 5], [6, 7, 8], [9, 10, 11], [12, 13, 14]]
-matrix_multiplication_2 = [[0, 1, 2], [3, 4, 5], [6, 7, 8], [9, 10, 11], [15] + replaced_channel]
+matrix_multiplication_list = [
+	[[0, 1, 2], [3, 4, 5], [6, 7, 8], [9, 10, 11], [12, 13, 14]], 
+	[[0, 1, 2], [3, 4, 5], [6, 7, 8], [9, 10, 11], [15] + replaced_channel]
+]

@@ -4,9 +4,9 @@ import dash_html_components as html
 from dash.dependencies import Input, Output, State
 import plotly
 import plotly.express as px
-import nidaqmx
-from nidaqmx.constants import Edge
-from nidaqmx.constants import AcquisitionType
+# import nidaqmx
+# from nidaqmx.constants import Edge
+# from nidaqmx.constants import AcquisitionType
 import multiprocessing
 from multiprocessing import Process, Value, Array, Manager
 import random
@@ -28,9 +28,9 @@ import plotly.graph_objects as go
 external_stylesheets = ['https://codepen.io/chriddyp/pen/bWLwgP.css']
 
 # Connect to nidaqmx and add all the ports to task
-task = nidaqmx.Task()
-for port_name in port_list:
-    task.ai_channels.add_ai_voltage_chan(port_name)
+# task = nidaqmx.Task()
+# for port_name in port_list:
+#     task.ai_channels.add_ai_voltage_chan(port_name)
 
 # manager = Manager()
 # global_static_data = manager.Value(c_wchar_p, json.dumps({}))
@@ -44,13 +44,13 @@ calibration_complete = Value('d', 0)
 # Create different figure with different layout 
 # There are two modes: basic and group
 def create_fig(mode):
-    if mode == 1:
+    if mode == 0:
         specs = basic_specs_1
-    elif mode == 2:
+    elif mode == 1:
         specs = basic_specs_2
-    elif mode == 3:
+    elif mode == 2:
         specs = group_specs_1
-    elif mode == 4:
+    elif mode == 3:
         specs = group_specs_2
     fig = plotly.tools.make_subplots(rows=specs["num_of_rows"], cols=specs["num_of_cols"], subplot_titles=specs["subplot_titles"])
     fig['layout']['margin'] = {
@@ -63,7 +63,7 @@ def create_fig(mode):
     # Initialize all the plots
     for i in range(num_of_ports):
         fig.append_trace({
-            'name': specs["subplot_titles"][i],
+            'name': specs["port_names"][i],
             'mode': 'lines+markers',
             'type': 'scatter',
             'line': {'color': specs['color'][i]}
@@ -73,9 +73,9 @@ fig = create_fig(1)
 
 def create_result_fig(mode):
     fig = None
-    if mode == "1":
+    if mode == 0:
         fig = px.scatter_3d(x=points_x, y=points_y, z=points_z, color=points_color, height=1000)
-    elif mode == "2":
+    elif mode == 1:
         result_rows = 5
         result_cols = 2
         fig = plotly.tools.make_subplots(rows=result_rows, cols=result_cols, 
@@ -98,8 +98,8 @@ index_layout = html.Div(
         html.H4('NI-DAQmx'),
         html.Div(id='live-update-text'),
         html.Div(
-            [html.Button("Basic Mode 2", id='basic-button', n_clicks=0),
-            html.Button("Group Mode 2", id='group-button', n_clicks=0),
+            [html.Button("Basic Mode", id='basic-button', n_clicks=0),
+            html.Button("Group Mode", id='group-button', n_clicks=0),
             html.P(id='calibration-status', style={'float': 'right'}),]
         ),
         html.Br(),
@@ -121,11 +121,9 @@ index_layout = html.Div(
 collect_layout = html.Div(
     html.Div([
         html.H4('NI-DAQmx'),
-        html.Button('Collect Group 1', id='collect-button-1', n_clicks=0),
-        html.Button('Collect Group 2', id='collect-button-2', n_clicks=0),
+        html.Button('Collect', id='collect-button', n_clicks=0),
         html.Button('Calculate', id='calculate-button', n_clicks=0),
-        html.Button('Calibrate 1', id='calibrate-button-1', n_clicks=0),
-        html.Button('Calibrate 2', id='calibrate-button-2', n_clicks=0),
+        html.Button('Calibrate', id='calibrate-button', n_clicks=0),
         html.Button('Output', id='output-button', n_clicks=0),
         html.Button('Clear', id='clear-button', n_clicks=0),
         html.Div(id='collect-counter'),
@@ -148,6 +146,21 @@ result_layout = html.Div(
 # Initialize webpage
 app = dash.Dash(__name__, suppress_callback_exceptions=True, external_stylesheets=external_stylesheets)
 app.layout = html.Div([
+    html.Div(
+        dcc.Slider(
+            id='group-slider',
+            min=0,
+            max=1,
+            step=None,
+            marks={
+                0: 'Group 1',
+                1: 'Group 2',
+            },
+            value = 0,
+        ),
+        style = {'width': '200px'}
+    ),
+    html.Br(),
     dcc.Tabs(id='tab-button', value='index-tab', children=[
         dcc.Tab(label='Display Data', value='index-tab'),
         dcc.Tab(label='Collect Data', value='collect-tab'),
@@ -185,13 +198,13 @@ def get_data():
     start_time = time.time()
     i = 0
     while True:
-        data = task.read()
+        # data = task.read()
         number.append(i)
         # number.append(time.time())
         for j in range(num_of_ports):
-            # voltage_list[j].append(i + j)
-            voltage_list[j].append(data[j])
-        # time.sleep(0.3)
+            voltage_list[j].append(i + j)
+            # voltage_list[j].append(data[j])
+        time.sleep(0.3)
         cur_time = time.time()
         if cur_time - start_time >= publisher_interval:
             message = json.dumps({'x': number, 'y': voltage_list})
@@ -211,14 +224,10 @@ sub.setsockopt_string(zmq.SUBSCRIBE, topic)
     Output('data_list', 'children'),
     Output('number_list', 'children'),
     Output('figure_number', 'children'),
-    Output('basic-button', 'children'),
-    Output('group-button', 'children'),
     Output('calibration-status', 'children'),
     Input('interval-component', 'n_intervals'),
     Input('basic-button', 'n_clicks'),
     Input('group-button', 'n_clicks'),
-    State('basic-button', 'children'),
-    State('group-button', 'children'),
     State('live-update-graph', 'figure'),
     State('data_list', 'children'),
     State('number_list', 'children'),
@@ -226,35 +235,27 @@ sub.setsockopt_string(zmq.SUBSCRIBE, topic)
     State('static-data', 'children'),
     State('apply-state', 'children'),
     State('calibration-type', 'children'),
+    State('group-slider', 'value'),
 )
-def update_graph_live(n, basic_clicks, group_clicks, basic_button_text, group_button_text, figure, data_list, number_list, fig_num, static_data, apply_state, calibration_type):
+def update_graph_live(n, basic_clicks, group_clicks, figure, data_list, number_list, fig_num, static_data, 
+    apply_state, calibration_type, group_slider):
     changed_id = [p['prop_id'] for p in dash.callback_context.triggered][0]
     # Use different figure layout with different mode
     data_list = json.loads(data_list)
     calibration_status = ""
     if calibration_complete.value == 1:
         calibration_status = "Calibration Complete"
-    if 'button' in changed_id:
-        legend = False
-        if 'basic-button' in changed_id:
-            if basic_button_text == "Basic Mode 2":
-                fig_num = 2
-                legend = False
-                basic_button_text = "Basic Mode 1"
-            else:
-                fig_num = 1
-                legend = False
-                basic_button_text = "Basic Mode 2"
-        elif 'group-button' in changed_id:
-            if group_button_text == "Group Mode 2":
-                fig_num = 4
-                legend = True
-                group_button_text = "Group Mode 1"
-            else:
-                fig_num = 3
-                legend = True
-                group_button_text = "Group Mode 2"
+
+    fig_change = True
+    if (fig_num < 2 or 'basic-button' in changed_id) and fig_num != group_slider:
+        fig_num = group_slider
+    elif (fig_num >= 2 or 'group-button' in changed_id) and fig_num != group_slider + 2:
+        fig_num = group_slider + 2
+    else:
+        fig_change = False
+    if fig_change:
         figure = create_fig(fig_num)
+        legend = False if fig_num <= 2 else True
         figure.update_layout(showlegend=legend)
 
     # Receive data
@@ -282,9 +283,7 @@ def update_graph_live(n, basic_clicks, group_clicks, basic_button_text, group_bu
         data = data_list
         static_data = json.loads(global_static_data.value.decode('utf-8'))
         if apply_state == "Stop" and len(static_data) > 0:
-            matrix_multiplication = matrix_multiplication_1
-            if calibration_type == 2:
-                matrix_multiplication = matrix_multiplication_2
+            matrix_multiplication = matrix_multiplication_list[calibration_type]
             matrix_list = static_data['matrix']
             ones = np.array([1 for k in range(len(data_list[0]))])
             new_data_list = [[] for k in range(num_of_ports)]
@@ -311,7 +310,7 @@ def update_graph_live(n, basic_clicks, group_clicks, basic_button_text, group_bu
                 xaxis_name = xaxis_name + str(i + 1)
             figure["layout"][xaxis_name]["range"] = [number_list[-1] - limit, number_list[-1]]
     data_list = json.dumps(data_list)
-    return figure, data_list, number_list, fig_num, basic_button_text, group_button_text, calibration_status
+    return figure, data_list, number_list, fig_num, calibration_status
 
 # Write data to file until killed, use read_data.py to transform into csv
 def store_data_helper(finish):
@@ -356,10 +355,7 @@ def store_data(n_clicks, store_state):
             store_process.start()
             return "Stop", "True"
     else:
-        if store_state == "True":
-            return "Stop", "True"
-        else:
-            return "Store Data", "False"
+        return ("Stop", "True") if store_state == "True" else ("Store Data", "False")
 
 # Check if collected data are valid
 def check_data(data_list):
@@ -379,21 +375,21 @@ def check_data(data_list):
     Output('display-lists-content', 'children'),
     Output('display-lists', 'children'),
     Output('collected-data', 'children'),
-    Input('collect-button-1', 'n_clicks'),
-    Input('collect-button-2', 'n_clicks'),
+    Input('collect-button', 'n_clicks'),
     Input('output-button', 'n_clicks'),
     Input('clear-button', 'n_clicks'),
     State('collect-graph', 'figure'),
     State('mean-lists', 'children'),
     State('collected-data', 'children'),
     State('display-lists-content', 'children'),
+    State('group-slider', 'value'),
     )
-def collect_data(collect_1_clicks, collect_2_clicks, output_clicks, clear_clicks, figure, mean_lists, collected_data, display_lists_content):
+def collect_data(collect_clicks, output_clicks, clear_clicks, figure, mean_lists, collected_data, display_lists_content, group_slider):
     changed_id = [p['prop_id'] for p in dash.callback_context.triggered][0]
     valid = False
     mean_lists = json.loads(mean_lists)
     data_list = json.loads(collected_data)
-    if 'collect-button' in changed_id and (collect_1_clicks > 0 or collect_2_clicks > 0):
+    if 'collect-button' in changed_id and collect_clicks > 0:
     	# Collect different number of channels
         data_list = [[] for k in range(num_of_ports + 2)]
         collect_context = zmq.Context()
@@ -405,6 +401,7 @@ def collect_data(collect_1_clicks, collect_2_clicks, output_clicks, clear_clicks
         mean_list = []
         number_list = []
         group_number_list = []
+        figure = create_fig(group_slider)
         while cur_time - start_time < collect_time_interval:
             message = collect_socket.recv()
             decodedMessage = message.decode("utf-8")
@@ -413,20 +410,16 @@ def collect_data(collect_1_clicks, collect_2_clicks, output_clicks, clear_clicks
 
             for i in range(num_of_ports):
                 j = i
-                if 'collect-button-2' in changed_id:
+                if group_slider == 1:
                     if i == replaced_channel[0]:
                         j = num_of_ports
                     elif i == replaced_channel[1]:
                         j = num_of_ports + 1
                 data_list[j].extend(data["y"][i])
             cur_time = time.time()
-        if 'collect-button-1' in changed_id:
-            figure = create_fig(1)
-        else:
-            figure = create_fig(2)
         for i in range(num_of_ports):
             j = i
-            if 'collect-button-2' in changed_id:
+            if group_slider == 1:
                 if i == replaced_channel[0]:
                     j = num_of_ports
                 elif i == replaced_channel[1]:
@@ -434,8 +427,8 @@ def collect_data(collect_1_clicks, collect_2_clicks, output_clicks, clear_clicks
             figure["data"][i]["x"] = number_list
             figure["data"][i]["y"] = data_list[j]
         check_result = check_data(data_list)
-        if check_result == True:
-            if 'collect-button-1' in changed_id:
+        if check_result:
+            if group_slider == 0:
                 for i in range(num_of_ports):
                     mean_list.append(round(statistics.mean(data_list[i]), 4))
                 display_lists_content.append(html.P(str(len(data_list[0])) + " value collected: " + str(mean_list)))
@@ -504,7 +497,7 @@ def calibrate(collected_data, type, global_static_data, calibration_complete):
         c = cols[i]
         row = []
         for j in range(len(collected_data[0])):
-            if type == 2 and replaced_channel[0] in [c, c + 1, c + 2] and len(collected_data) > num_of_ports:
+            if type == 1 and replaced_channel[0] in [c, c + 1, c + 2] and len(collected_data) > num_of_ports:
                 data[i][0].append([collected_data[15][j], collected_data[16][j], collected_data[17][j], 1])
             else:
                 data[i][0].append([collected_data[c][j], collected_data[c + 1][j], collected_data[c + 2][j], 1])
@@ -544,19 +537,19 @@ def calibrate(collected_data, type, global_static_data, calibration_complete):
     Output('result-number', 'children'),
     Output('calibration-type', 'children'),
     Input('calculate-button', 'n_clicks'),
-    Input('calibrate-button-1', 'n_clicks'),
-    Input('calibrate-button-2', 'n_clicks'),
+    Input('calibrate-button', 'n_clicks'),
+    Input('group-slider', 'value'),
+    State('tab-button', 'value'),
     State('result-number', 'children'),
     State('mean-lists', 'children'),
     State('collected-data', 'children'))
-def calclulate_action(calculate_clicks, calibrate_clicks_1, calibrate_clicks_2, result_number, mean_lists, collected_data):
+def calclulate_action(calculate_clicks, calibrate_clicks, group_slider, tab_value, result_number, mean_lists, collected_data):
     changed_id = [p['prop_id'] for p in dash.callback_context.triggered][0]
-    tab_value = 'collect-tab'
-    calibration_type = 1
+    calibration_type = group_slider
     static_data = []
     if 'calculate-button' in changed_id and calculate_clicks > 0:
         mean_lists = json.loads(mean_lists)
-        result_number = "1"
+        result_number = 0
         result_list = []
         static_data = [[] for k in range(4)]
         for mean_list in mean_lists:
@@ -570,15 +563,9 @@ def calclulate_action(calculate_clicks, calibrate_clicks_1, calibrate_clicks_2, 
         tab_value = 'result-tab'
     elif 'calibrate-button' in changed_id:
         collected_data = json.loads(collected_data)
-        if 'calibrate-button-1' in changed_id and calibrate_clicks_1 > 0:
-            calibrate_process = Process(target=calibrate, args=(collected_data, 1, global_static_data, calibration_complete,))
-            calibrate_process.start()
-            result_number = "2"
-        elif 'calibrate-button-2' in changed_id and calibrate_clicks_2 > 0:
-            calibrate_process = Process(target=calibrate, args=(collected_data, 2, global_static_data, calibration_complete))
-            calibrate_process.start()
-            result_number = "2"
-            calibration_type = 2
+        calibrate_process = Process(target=calibrate, args=(collected_data, group_slider, global_static_data, calibration_complete,))
+        calibrate_process.start()
+        result_number = 1
         tab_value = 'index-tab'
     static_data = json.dumps(static_data)
     return tab_value, static_data, result_number, calibration_type
@@ -600,13 +587,13 @@ def update_result_graph(apply_clicks, result_number, data, apply_state):
     data = json.loads(data)
     matrix_value = []
     style = {'display': 'none'}
-    if result_number == "1":
+    if result_number == 0:
         figure["data"][0]["x"] = np.hstack([figure["data"][0]["x"], data[0]])
         figure["data"][0]["y"] = np.hstack([figure["data"][0]["y"], data[1]])
         figure["data"][0]["z"] = np.hstack([figure["data"][0]["z"], data[2]])
         figure["data"][0]["marker"]["color"] = np.hstack([figure["data"][0]["marker"]["color"], data[3]])
 
-    elif result_number == "2":
+    elif result_number == 1:
         data = json.loads(global_static_data.value.decode('utf-8'))
         if len(data) > 0:
             matrix_data = data["matrix"]
@@ -633,10 +620,7 @@ def update_result_graph(apply_clicks, result_number, data, apply_state):
             style = {'display': 'block'}
 
     if apply_clicks > 0:
-    	if apply_state == "Apply Calibration":
-    		apply_state = "Stop"
-    	else:
-    		apply_state = "Apply Calibration"
+        apply_state = "Stop" if apply_state == "Apply Calibration" else "Apply Calibration"
     return matrix_value, figure, apply_state, style, apply_state
 
 def start_app():
