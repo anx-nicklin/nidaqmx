@@ -108,7 +108,6 @@ index_layout = html.Div(
         html.Div(json.dumps([[] for k in range(num_of_ports)]), id='data_list', style={'display': 'none'}),
         html.Div([], id='number_list', style={'display': 'none'}),
         html.Div(1, id='figure_number', style={'display': 'none'}),
-        html.Div([True for k in range(num_of_ports)], id='visibility', style={'display': 'none'}),
         dcc.Interval(
             id='interval-component',
             interval=500,
@@ -123,7 +122,8 @@ collect_layout = html.Div(
         html.H4('NI-DAQmx'),
         html.Button('Collect', id='collect-button', n_clicks=0),
         html.Button('Calculate', id='calculate-button', n_clicks=0),
-        html.Button('Calibrate', id='calibrate-button', n_clicks=0),
+        html.Button('Calibrate Phase 1', id='calibrate-button-1', n_clicks=0),
+        html.Button('Calibrate Phase 2', id='calibrate-button-2', n_clicks=0),
         html.Button('Output', id='output-button', n_clicks=0),
         html.Button('Clear', id='clear-button', n_clicks=0),
         html.Div(id='collect-counter'),
@@ -172,7 +172,7 @@ app.layout = html.Div([
     html.Div([], id='display-lists-content', style={'display': 'none'}),
     html.Div(json.dumps([]), id='static-data', style={'display': 'none'}),
     html.Div("False", id='store-button-state', style={'display': 'none'}),
-    html.Div("2", id='result-number', style={'display': 'none'}),
+    html.Div(id='result-number', style={'display': 'none'}),
     html.Div("Apply Calibration", id='apply-state', style={'display': 'none'}),
     html.Div(id='calibration-type', style={'display': 'none'}),
 ])
@@ -537,13 +537,14 @@ def calibrate(collected_data, type, global_static_data, calibration_complete):
     Output('result-number', 'children'),
     Output('calibration-type', 'children'),
     Input('calculate-button', 'n_clicks'),
-    Input('calibrate-button', 'n_clicks'),
+    Input('calibrate-button-1', 'n_clicks'),
+    Input('calibrate-button-2', 'n_clicks'),
     Input('group-slider', 'value'),
     State('tab-button', 'value'),
     State('result-number', 'children'),
     State('mean-lists', 'children'),
     State('collected-data', 'children'))
-def calclulate_action(calculate_clicks, calibrate_clicks, group_slider, tab_value, result_number, mean_lists, collected_data):
+def calclulate_action(calculate_clicks, calibrate_clicks_1, calibrate_clicks_2, group_slider, tab_value, result_number, mean_lists, collected_data):
     changed_id = [p['prop_id'] for p in dash.callback_context.triggered][0]
     calibration_type = group_slider
     static_data = []
@@ -561,7 +562,7 @@ def calclulate_action(calculate_clicks, calibrate_clicks, group_slider, tab_valu
                 static_data[2].extend(result[2])
                 static_data[3].append(0.5)
         tab_value = 'result-tab'
-    elif 'calibrate-button' in changed_id:
+    elif 'calibrate-button-1' in changed_id:
         collected_data = json.loads(collected_data)
         calibrate_process = Process(target=calibrate, args=(collected_data, group_slider, global_static_data, calibration_complete,))
         calibrate_process.start()
