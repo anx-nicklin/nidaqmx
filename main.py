@@ -4,9 +4,9 @@ import dash_html_components as html
 from dash.dependencies import Input, Output, State
 import plotly
 import plotly.express as px
-# import nidaqmx
-# from nidaqmx.constants import Edge
-# from nidaqmx.constants import AcquisitionType
+import nidaqmx
+from nidaqmx.constants import Edge
+from nidaqmx.constants import AcquisitionType
 import multiprocessing
 from multiprocessing import Process, Value, Array, Manager
 import random
@@ -28,9 +28,9 @@ import plotly.graph_objects as go
 external_stylesheets = ['https://codepen.io/chriddyp/pen/bWLwgP.css']
 
 # Connect to nidaqmx and add all the ports to task
-# task = nidaqmx.Task()
-# for port_name in port_list:
-#     task.ai_channels.add_ai_voltage_chan(port_name)
+task = nidaqmx.Task()
+for port_name in port_list:
+    task.ai_channels.add_ai_voltage_chan(port_name)
 
 # manager = Manager()
 # global_static_data = manager.Value(c_wchar_p, json.dumps({}))
@@ -99,8 +99,7 @@ index_layout = html.Div(
         html.Div(id='live-update-text'),
         html.Div(
             [html.Button("Basic Mode", id='basic-button', n_clicks=0),
-            html.Button("Group Mode", id='group-button', n_clicks=0),
-            html.P(id='calibration-status', style={'float': 'right'}),]
+            html.Button("Group Mode", id='group-button', n_clicks=0),]
         ),
         html.Br(),
         html.Button(id='store-button', n_clicks=0),
@@ -120,7 +119,17 @@ index_layout = html.Div(
 collect_layout = html.Div(
     html.Div([
         html.H4('NI-DAQmx'),
-        html.Button('Collect', id='collect-button', n_clicks=0),
+        html.Div([
+            dcc.Slider(
+                id='collect-time-slider',
+                min=1,
+                max=20,
+                step=1,
+                value=2,
+            ),
+            html.Button('Collect', id='collect-button', n_clicks=0),],
+            style={'width': '300px'}
+        ),
         html.Button('Calculate', id='calculate-button', n_clicks=0),
         html.Button('Calibrate Phase 1', id='calibrate-button-1', n_clicks=0),
         html.Button('Calibrate Phase 2', id='calibrate-button-2', n_clicks=0),
@@ -147,18 +156,20 @@ result_layout = html.Div(
 app = dash.Dash(__name__, suppress_callback_exceptions=True, external_stylesheets=external_stylesheets)
 app.layout = html.Div([
     html.Div(
-        dcc.Slider(
-            id='group-slider',
-            min=0,
-            max=1,
-            step=None,
-            marks={
-                0: 'Group 1',
-                1: 'Group 2',
-            },
-            value = 0,
-        ),
-        style = {'width': '200px'}
+        [
+            html.P(id='calibration-status', style={'float': 'right'}),
+            html.Div(dcc.Slider(
+                id='group-slider',
+                min=0,
+                max=1,
+                step=None,
+                marks={
+                    0: 'Group 1',
+                    1: 'Group 2',
+                },
+                value = 0,
+            ), style = {'width': '200px'}),
+        ],
     ),
     html.Br(),
     dcc.Tabs(id='tab-button', value='index-tab', children=[
@@ -198,13 +209,13 @@ def get_data():
     start_time = time.time()
     i = 0
     while True:
-        # data = task.read()
+        data = task.read()
         number.append(i)
         # number.append(time.time())
         for j in range(num_of_ports):
-            voltage_list[j].append(i + j)
-            # voltage_list[j].append(data[j])
-        time.sleep(0.3)
+            # voltage_list[j].append(i + j)
+            voltage_list[j].append(data[j])
+        # time.sleep(0.3)
         cur_time = time.time()
         if cur_time - start_time >= publisher_interval:
             message = json.dumps({'x': number, 'y': voltage_list})
@@ -359,13 +370,20 @@ def store_data(n_clicks, store_state):
 
 # Check if collected data are valid
 def check_data(data_list):
-    # var_list_local = var_list
-    # for i in range(num_of_ports):
-    #     if len(data_list[i]) > 0:
-    #         difference = abs(statistics.stdev(data_list[i]) - var_list_local[i])
-    #         if difference > std_difference:
-    #             return port_list[i]
+    var_list_local = var_list
+    for i in range(num_of_ports):
+        if len(data_list[i]) > 0:
+            difference = abs(statistics.stdev(data_list[i]) - var_list_local[i])
+            if difference > std_difference:
+                return port_list[i]
     return True
+
+@app.callback(
+    Output('collect-button', 'children'),
+    Input('collect-time-slider', 'value')
+    )
+def update_collect_button(value):
+    return 'Collect {} Seconds'.format(value)
 
 # Collect data for static location calculation
 @app.callback(
@@ -383,8 +401,9 @@ def check_data(data_list):
     State('collected-data', 'children'),
     State('display-lists-content', 'children'),
     State('group-slider', 'value'),
+    State('collect-time-slider', 'value'),
     )
-def collect_data(collect_clicks, output_clicks, clear_clicks, figure, mean_lists, collected_data, display_lists_content, group_slider):
+def collect_data(collect_clicks, output_clicks, clear_clicks, figure, mean_lists, collected_data, display_lists_content, group_slider, collect_time):
     changed_id = [p['prop_id'] for p in dash.callback_context.triggered][0]
     valid = False
     mean_lists = json.loads(mean_lists)
@@ -402,7 +421,8 @@ def collect_data(collect_clicks, output_clicks, clear_clicks, figure, mean_lists
         number_list = []
         group_number_list = []
         figure = create_fig(group_slider)
-        while cur_time - start_time < collect_time_interval:
+        print("collect " + str(collect_time) + " seconds")
+        while cur_time - start_time < collect_time:
             message = collect_socket.recv()
             decodedMessage = message.decode("utf-8")
             data = json.loads(decodedMessage[4 :])
